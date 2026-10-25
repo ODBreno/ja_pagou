@@ -180,6 +180,23 @@ export function Configuracoes({ configuracao, emailLogado, onSalvar, onVoltar, o
                 <option value="debito">Débito automático</option>
               </select>
             </div>
+            <label className="flex items-center gap-2 text-sm text-suave">
+              Quem paga
+              <select
+                value={conta.responsavel ?? ''}
+                onChange={(e) => alterarFixa(conta.id, { responsavel: e.target.value || null })}
+                className={`${campo} min-w-0 flex-1 py-1.5 text-sm`}
+              >
+                <option value="">Tanto faz</option>
+                {moradores
+                  .filter((m) => m.nome.trim())
+                  .map((m) => (
+                    <option key={m.email || m.nome} value={m.nome.trim()}>
+                      {m.nome.trim()}
+                    </option>
+                  ))}
+              </select>
+            </label>
             <label className="flex w-fit items-center gap-2 text-sm text-suave">
               <input
                 type="checkbox"
@@ -214,7 +231,20 @@ export function Configuracoes({ configuracao, emailLogado, onSalvar, onVoltar, o
         ))}
         <button
           type="button"
-          onClick={() => setContasFixas([...contasFixas, { id: novoId(), nome: '', diaVencimento: 10, tipo: 'boleto', valorPadrao: null, codigoPagamento: null }])}
+          onClick={() =>
+            setContasFixas([
+              ...contasFixas,
+              {
+                id: novoId(),
+                nome: '',
+                diaVencimento: 10,
+                tipo: 'boleto',
+                valorPadrao: null,
+                codigoPagamento: null,
+                responsavel: null,
+              },
+            ])
+          }
           className="flex items-center gap-1.5 text-sm font-medium text-destaque-claro"
         >
           <Plus size={16} /> Adicionar conta fixa

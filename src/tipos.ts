@@ -13,6 +13,8 @@ export interface ContaFixa {
   valorPadrao: number | null
   /** Código que se repete todo mês (ex.: chave Pix da conta do débito automático). */
   codigoPagamento: string | null
+  /** Nome de quem costuma pagar; vira o responsável da conta em cada mês. */
+  responsavel: string | null
 }
 
 export interface Anexo {

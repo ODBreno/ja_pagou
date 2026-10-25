@@ -17,6 +17,7 @@ interface LinhaContaFixa {
   tipo: TipoConta
   valor_padrao: number | string | null
   codigo_pagamento: string | null
+  responsavel: string | null
 }
 
 interface LinhaContaDoMes {
@@ -80,7 +81,7 @@ export async function carregarConfiguracao(): Promise<Configuracao> {
     supabase.from('moradores').select('email, nome').order('nome'),
     supabase
       .from('contas_fixas')
-      .select('id, nome, dia_vencimento, tipo, valor_padrao, codigo_pagamento')
+      .select('id, nome, dia_vencimento, tipo, valor_padrao, codigo_pagamento, responsavel')
       .eq('ativa', true)
       .order('dia_vencimento'),
   ])
@@ -93,6 +94,7 @@ export async function carregarConfiguracao(): Promise<Configuracao> {
       tipo: f.tipo,
       valorPadrao: paraNumero(f.valor_padrao),
       codigoPagamento: f.codigo_pagamento,
+      responsavel: f.responsavel,
     })),
   }
 }
@@ -111,6 +113,7 @@ export async function salvarConfiguracao(nova: Configuracao, anterior: Configura
     tipo: c.tipo,
     valor_padrao: c.valorPadrao,
     codigo_pagamento: c.codigoPagamento,
+    responsavel: c.responsavel,
   })
   const existentes = nova.contasFixas.filter((c) => idsAnteriores.has(c.id))
   const novas = nova.contasFixas.filter((c) => !idsAnteriores.has(c.id))
@@ -137,7 +140,7 @@ function novaContaDoMes(mes: string, fixa: ContaFixa): Omit<ContaDoMes, 'id'> {
     vencimento: vencimentoNoMes(mes, fixa.diaVencimento),
     valor: fixa.valorPadrao,
     codigoPagamento: fixa.codigoPagamento,
-    responsavel: null,
+    responsavel: fixa.responsavel,
     conta: null,
     comprovante: null,
     pagoEm: null,
@@ -146,8 +149,8 @@ function novaContaDoMes(mes: string, fixa: ContaFixa): Omit<ContaDoMes, 'id'> {
 
 /**
  * Meses que já passaram ficam como estão; o atual e os futuros acompanham as contas fixas:
- * cria as que faltam, atualiza nome/tipo/vencimento das não pagas (e preenche valor e código
- * se ainda estiverem vazios) e tira as desativadas sem anexo.
+ * cria as que faltam, atualiza nome/tipo/vencimento das não pagas (e preenche valor, código e
+ * responsável se ainda estiverem vazios) e tira as desativadas sem anexo.
  */
 export async function carregarMes(mes: string, fixas: ContaFixa[]): Promise<ContaDoMes[]> {
   const contas = await buscarMes(mes)
@@ -163,13 +166,15 @@ export async function carregarMes(mes: string, fixas: ContaFixa[]): Promise<Cont
       vencimento: vencimentoNoMes(mes, fixa.diaVencimento),
       valor: c.valor ?? fixa.valorPadrao,
       codigo_pagamento: c.codigoPagamento ?? fixa.codigoPagamento,
+      responsavel: c.responsavel ?? fixa.responsavel,
     }
     const igual =
       c.nome === mudanca.nome &&
       c.tipo === mudanca.tipo &&
       c.vencimento === mudanca.vencimento &&
       c.valor === mudanca.valor &&
-      c.codigoPagamento === mudanca.codigo_pagamento
+      c.codigoPagamento === mudanca.codigo_pagamento &&
+      c.responsavel === mudanca.responsavel
     return igual ? [] : [{ id: c.id, ...mudanca }]
   })
   const orfas = contas
