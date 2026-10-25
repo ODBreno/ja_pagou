@@ -1,9 +1,27 @@
+import { useEffect, useState } from 'react'
+import { TelaDoMes } from './components/TelaDoMes'
+import { carregarConfiguracao } from './dados/repositorio'
+import { mesAtual } from './lib/datas'
+import type { Configuracao } from './tipos'
+
 function App() {
+  const [configuracao, setConfiguracao] = useState<Configuracao | null>(null)
+  const [mes, setMes] = useState(mesAtual)
+
+  useEffect(() => {
+    carregarConfiguracao().then(setConfiguracao)
+  }, [])
+
+  if (!configuracao) return <p className="py-10 text-center text-slate-400">Carregando…</p>
+
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-2 bg-slate-50 p-4 text-slate-900">
-      <h1 className="text-3xl font-bold">Já pagamos?</h1>
-      <p className="text-slate-600">As contas da casa, mês a mês.</p>
-    </main>
+    <TelaDoMes
+      key={mes}
+      mes={mes}
+      configuracao={configuracao}
+      onMudarMes={setMes}
+      onAbrirConfiguracoes={() => {}}
+    />
   )
 }
 
