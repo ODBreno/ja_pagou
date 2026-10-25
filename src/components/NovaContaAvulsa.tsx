@@ -34,7 +34,7 @@ export function NovaContaAvulsa({ mes, onAdicionada }: Props) {
       <button
         type="button"
         onClick={() => setAberto(true)}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 py-3 text-sm font-medium text-slate-500 hover:border-emerald-400 hover:text-emerald-700"
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-borda py-3 text-sm font-medium text-suave hover:border-destaque hover:text-destaque-claro"
       >
         <Plus size={16} /> Conta avulsa neste mês
       </button>
@@ -42,7 +42,7 @@ export function NovaContaAvulsa({ mes, onAdicionada }: Props) {
   }
 
   return (
-    <form onSubmit={salvar} className="space-y-3 rounded-2xl bg-white p-4 shadow-sm">
+    <form onSubmit={salvar} className="space-y-3 rounded-2xl bg-superficie p-4 ring-1 ring-borda">
       <p className="font-semibold">Nova conta avulsa</p>
       <input
         required
@@ -50,7 +50,7 @@ export function NovaContaAvulsa({ mes, onAdicionada }: Props) {
         placeholder="Nome (ex.: IPTU, consulta)"
         value={nome}
         onChange={(e) => setNome(e.target.value)}
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-emerald-400"
+        className="w-full rounded-lg border border-borda px-3 py-2 outline-none focus:border-destaque"
       />
       <div className="flex gap-2">
         <input
@@ -62,22 +62,22 @@ export function NovaContaAvulsa({ mes, onAdicionada }: Props) {
           placeholder="Dia do vencimento"
           value={dia}
           onChange={(e) => setDia(e.target.value)}
-          className="w-1/2 rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-emerald-400"
+          className="w-1/2 rounded-lg border border-borda px-3 py-2 outline-none focus:border-destaque"
         />
         <select
           value={tipo}
           onChange={(e) => setTipo(e.target.value as TipoConta)}
-          className="w-1/2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400"
+          className="w-1/2 rounded-lg border border-borda bg-elevado px-3 py-2 text-sm outline-none focus:border-destaque"
         >
           <option value="boleto">Tem conta/boleto</option>
           <option value="debito">Débito automático</option>
         </select>
       </div>
       <div className="flex justify-end gap-2">
-        <button type="button" onClick={() => setAberto(false)} className="px-3 py-2 text-sm text-slate-500">
+        <button type="button" onClick={() => setAberto(false)} className="px-3 py-2 text-sm text-suave">
           Cancelar
         </button>
-        <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white">
+        <button type="submit" className="rounded-lg bg-destaque px-4 py-2 text-sm font-medium text-white">
           Adicionar
         </button>
       </div>

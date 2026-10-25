@@ -9,7 +9,7 @@ interface Props {
   onVoltar: () => void
 }
 
-const campo = 'rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none focus:border-emerald-400'
+const campo = 'rounded-lg border border-borda bg-elevado px-3 py-2 outline-none focus:border-destaque'
 
 export function Configuracoes({ configuracao, onSalvar, onVoltar }: Props) {
   const [moradores, setMoradores] = useState(configuracao.moradores)
@@ -36,7 +36,7 @@ export function Configuracoes({ configuracao, onSalvar, onVoltar }: Props) {
         <button
           type="button"
           onClick={onVoltar}
-          className="rounded-full p-2 text-slate-600 hover:bg-slate-200"
+          className="rounded-full p-2 text-suave hover:bg-elevado"
           aria-label="Voltar"
         >
           <ArrowLeft size={22} />
@@ -44,10 +44,10 @@ export function Configuracoes({ configuracao, onSalvar, onVoltar }: Props) {
         <h1 className="text-2xl font-bold">Configurações</h1>
       </header>
 
-      <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm">
+      <section className="space-y-3 rounded-2xl bg-superficie p-4 ring-1 ring-borda">
         <div>
           <h2 className="font-semibold">Quem mora aqui</h2>
-          <p className="text-sm text-slate-500">Aparece no "quem vai pagar" de cada conta.</p>
+          <p className="text-sm text-suave">Aparece no "quem vai pagar" de cada conta.</p>
         </div>
         {moradores.map((nome, i) => (
           <div key={i} className="flex gap-2">
@@ -60,7 +60,7 @@ export function Configuracoes({ configuracao, onSalvar, onVoltar }: Props) {
             <button
               type="button"
               onClick={() => setMoradores(moradores.filter((_, j) => j !== i))}
-              className="rounded-full p-2 text-slate-400 hover:text-rose-600"
+              className="rounded-full p-2 text-apagado hover:text-rose-400"
               aria-label={`Remover ${nome}`}
             >
               <Trash2 size={18} />
@@ -70,21 +70,21 @@ export function Configuracoes({ configuracao, onSalvar, onVoltar }: Props) {
         <button
           type="button"
           onClick={() => setMoradores([...moradores, ''])}
-          className="flex items-center gap-1.5 text-sm font-medium text-emerald-700"
+          className="flex items-center gap-1.5 text-sm font-medium text-destaque-claro"
         >
           <Plus size={16} /> Adicionar pessoa
         </button>
       </section>
 
-      <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm">
+      <section className="space-y-3 rounded-2xl bg-superficie p-4 ring-1 ring-borda">
         <div>
           <h2 className="font-semibold">Contas fixas</h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-suave">
             Entram sozinhas na checklist de todo mês. Mudanças valem para o mês atual e os próximos.
           </p>
         </div>
         {contasFixas.map((conta) => (
-          <div key={conta.id} className="space-y-2 rounded-xl border border-slate-200 p-3">
+          <div key={conta.id} className="space-y-2 rounded-xl border border-borda p-3">
             <div className="flex gap-2">
               <input
                 value={conta.nome}
@@ -95,14 +95,14 @@ export function Configuracoes({ configuracao, onSalvar, onVoltar }: Props) {
               <button
                 type="button"
                 onClick={() => setContasFixas(contasFixas.filter((c) => c.id !== conta.id))}
-                className="rounded-full p-2 text-slate-400 hover:text-rose-600"
+                className="rounded-full p-2 text-apagado hover:text-rose-400"
                 aria-label={`Remover ${conta.nome}`}
               >
                 <Trash2 size={18} />
               </button>
             </div>
             <div className="flex gap-2">
-              <label className="flex w-24 items-center gap-2 text-sm text-slate-500">
+              <label className="flex w-24 items-center gap-2 text-sm text-suave">
                 Dia
                 <input
                   type="number"
@@ -111,7 +111,7 @@ export function Configuracoes({ configuracao, onSalvar, onVoltar }: Props) {
                   inputMode="numeric"
                   value={conta.diaVencimento || ''}
                   onChange={(e) => alterarFixa(conta.id, { diaVencimento: Number(e.target.value) })}
-                  className={`${campo} w-full text-slate-900`}
+                  className={`${campo} w-full text-texto`}
                 />
               </label>
               <select
@@ -128,13 +128,13 @@ export function Configuracoes({ configuracao, onSalvar, onVoltar }: Props) {
         <button
           type="button"
           onClick={() => setContasFixas([...contasFixas, { id: novoId(), nome: '', diaVencimento: 10, tipo: 'boleto' }])}
-          className="flex items-center gap-1.5 text-sm font-medium text-emerald-700"
+          className="flex items-center gap-1.5 text-sm font-medium text-destaque-claro"
         >
           <Plus size={16} /> Adicionar conta fixa
         </button>
       </section>
 
-      <button type="submit" className="w-full rounded-xl bg-emerald-600 py-3 font-semibold text-white">
+      <button type="submit" className="w-full rounded-xl bg-destaque py-3 font-semibold text-white">
         Salvar
       </button>
     </form>

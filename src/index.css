@@ -1,7 +1,24 @@
 @import 'tailwindcss';
 
+/* Tema escuro em tons de azul. Os nomes viram classes: bg-superficie, text-suave, border-borda... */
+@theme {
+  --color-fundo: #0a1020;
+  --color-superficie: #111a2e;
+  --color-elevado: #1a2642;
+  --color-borda: #24324f;
+  --color-texto: #e5ecf8;
+  --color-suave: #94a3c4;
+  --color-apagado: #5d6c8c;
+  --color-destaque: #3b82f6;
+  --color-destaque-claro: #60a5fa;
+}
+
+:root {
+  color-scheme: dark;
+}
+
 body {
-  background-color: var(--color-slate-100);
-  color: var(--color-slate-900);
+  background-color: var(--color-fundo);
+  color: var(--color-texto);
   -webkit-tap-highlight-color: transparent;
 }

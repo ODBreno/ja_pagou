@@ -47,7 +47,7 @@ export function TelaDoMes({ mes, configuracao, onMudarMes, onAbrirConfiguracoes 
     <div className="mx-auto max-w-md px-4 pb-10">
       <CabecalhoMes mes={mes} onMudarMes={onMudarMes} onAbrirConfiguracoes={onAbrirConfiguracoes} />
       {contas === null ? (
-        <p className="py-10 text-center text-slate-400">Carregando…</p>
+        <p className="py-10 text-center text-apagado">Carregando…</p>
       ) : (
         <div className="space-y-3">
           <ResumoMes contas={contas} />

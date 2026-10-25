@@ -14,7 +14,7 @@ function App() {
     carregarConfiguracao().then(setConfiguracao)
   }, [])
 
-  if (!configuracao) return <p className="py-10 text-center text-slate-400">Carregando…</p>
+  if (!configuracao) return <p className="py-10 text-center text-apagado">Carregando…</p>
 
   if (tela === 'configuracoes') {
     return (

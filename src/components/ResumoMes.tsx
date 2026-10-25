@@ -15,29 +15,29 @@ export function ResumoMes({ contas }: { contas: ContaDoMes[] }) {
   const progresso = contas.length ? (pagas.length / contas.length) * 100 : 0
 
   return (
-    <section className="rounded-2xl bg-white p-4 shadow-sm">
+    <section className="rounded-2xl bg-superficie p-4 ring-1 ring-borda">
       <div className="flex items-baseline justify-between">
         <p className="text-lg font-semibold">
           {pagas.length} de {contas.length} pagas
         </p>
         {total > 0 && (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-suave">
             {formatarReais(totalPago)} de {formatarReais(total)}
           </p>
         )}
       </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-        <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progresso}%` }} />
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-elevado">
+        <div className="h-full rounded-full bg-destaque transition-all" style={{ width: `${progresso}%` }} />
       </div>
       {(atrasadas > 0 || vencendo > 0) && (
         <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium">
           {atrasadas > 0 && (
-            <span className="rounded-full bg-rose-100 px-2 py-1 text-rose-700">
+            <span className="rounded-full bg-rose-500/15 px-2 py-1 text-rose-300">
               {atrasadas} {atrasadas === 1 ? 'atrasada' : 'atrasadas'}
             </span>
           )}
           {vencendo > 0 && (
-            <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-800">
+            <span className="rounded-full bg-amber-400/15 px-2 py-1 text-amber-300">
               {vencendo} vencendo em até 3 dias
             </span>
           )}
