@@ -298,6 +298,12 @@ export async function removerAnexo(conta: ContaDoMes, campo: CampoAnexo): Promis
   return atualizada
 }
 
+export async function baixarAnexo(anexo: Anexo): Promise<Blob> {
+  const { data, error } = await supabase.storage.from(BUCKET).download(anexo.caminho)
+  if (error) throw new Error(error.message)
+  return data
+}
+
 /** Link temporário (5 min) para abrir o arquivo do bucket privado. */
 export async function urlDoAnexo(anexo: Anexo): Promise<string> {
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(anexo.caminho, 300)

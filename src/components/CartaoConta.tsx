@@ -1,5 +1,7 @@
-import { ChevronDown, FileText, Repeat, Trash2 } from 'lucide-react'
-import { anexarArquivo, removerAnexo, removerConta } from '../dados/repositorio'
+import { ChevronDown, FileText, Repeat, ScanText, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { anexarArquivo, baixarAnexo, removerAnexo, removerConta } from '../dados/repositorio'
+import { lerCodigoDoPdf } from '../lib/lerPdf'
 import { diaEMes, diasAte, hoje } from '../lib/datas'
 import { formatarReais, valorParaTexto } from '../lib/dinheiro'
 import { estaAtrasada, statusDa, type Status } from '../lib/status'
@@ -47,9 +49,46 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
   const atrasada = estaAtrasada(conta)
   const Icone = conta.tipo === 'debito' ? Repeat : FileText
 
-  async function anexar(campo: CampoAnexo, arquivo: File) {
-    onAlterada(await anexarArquivo(conta, campo, arquivo))
+  const [lendoPdf, setLendoPdf] = useState(false)
+  const [leitura, setLeitura] = useState<{ ok: boolean; texto: string } | null>(null)
+
+  /** Procura a linha digitável / Pix no PDF da conta e preenche o código (e o valor, se vazio). */
+  async function preencherPeloPdf(base: ContaDoMes, arquivo: Blob) {
+    setLendoPdf(true)
+    setLeitura(null)
+    try {
+      const achado = await lerCodigoDoPdf(arquivo)
+      if (!achado) {
+        setLeitura({ ok: false, texto: 'Não achei o código neste PDF. Cole manualmente.' })
+        return
+      }
+      const pegouValor = base.valor == null && achado.valor != null
+      onAlterada({ ...base, codigoPagamento: achado.codigo, valor: base.valor ?? achado.valor })
+      setLeitura({ ok: true, texto: pegouValor ? 'Código e valor lidos do PDF ✓' : 'Código lido do PDF ✓' })
+    } catch {
+      setLeitura({ ok: false, texto: 'Não consegui ler este PDF.' })
+    } finally {
+      setLendoPdf(false)
+    }
   }
+
+  async function anexar(campo: CampoAnexo, arquivo: File) {
+    const atualizada = await anexarArquivo(conta, campo, arquivo)
+    onAlterada(atualizada)
+    if (campo === 'conta' && arquivo.type === 'application/pdf' && !atualizada.codigoPagamento) {
+      await preencherPeloPdf(atualizada, arquivo)
+    }
+  }
+
+  async function lerPdfAnexado() {
+    try {
+      await preencherPeloPdf(conta, await baixarAnexo(conta.conta!))
+    } catch (erro) {
+      setLeitura({ ok: false, texto: `Não consegui baixar o PDF: ${(erro as Error).message}` })
+    }
+  }
+
+  const podeLerPdf = status !== 'pago' && !conta.codigoPagamento && conta.conta?.tipoMime === 'application/pdf'
 
   async function desanexar(campo: CampoAnexo) {
     onAlterada(await removerAnexo(conta, campo))
@@ -114,6 +153,19 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
                 codigo={conta.codigoPagamento}
                 onMudar={(codigoPagamento) => onAlterada({ ...conta, codigoPagamento })}
               />
+              {lendoPdf && <p className="mt-2 text-sm text-suave">Lendo o PDF…</p>}
+              {!lendoPdf && leitura && (
+                <p className={`mt-2 text-sm ${leitura.ok ? 'text-emerald-300' : 'text-amber-300'}`}>{leitura.texto}</p>
+              )}
+              {!lendoPdf && podeLerPdf && (
+                <button
+                  type="button"
+                  onClick={lerPdfAnexado}
+                  className="mt-2 flex items-center gap-1.5 text-sm font-medium text-destaque-claro"
+                >
+                  <ScanText size={16} /> Ler código do PDF anexado
+                </button>
+              )}
             </div>
           )}
 
