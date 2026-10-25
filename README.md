@@ -42,9 +42,14 @@ guarda o PDF (ou foto) da conta e o comprovante, e o status muda conforme os ane
 - **Checklist automática do mês** gerada a partir das contas fixas (nome, dia de vencimento e tipo).
 - **Status pelos anexos:** sem conta → _aguardando conta_; com a conta → _a pagar_; com o comprovante
   → _pago_. Débito automático pula a primeira etapa e já começa como _mandar Pix_.
-- **Quem vai pagar:** cada conta pode ter um responsável.
+- **Quem vai pagar:** cada conta tem um responsável, que pode vir fixo da conta fixa.
 - **Código para pagar com um toque:** linha digitável, Pix copia e cola ou chave Pix com botão
   **Copiar**, e valor copiável. Contas fixas podem ter valor e chave Pix que entram sozinhos todo mês.
+- **Leitura do PDF:** ao anexar a conta em PDF, o app acha sozinho a linha digitável (boleto ou conta
+  de consumo) ou o Pix copia e cola e o valor, validando os dígitos verificadores.
+- **Compartilhar para o app:** no Android, o PDF ou a foto vai direto do e-mail ou do app do banco
+  para o "Já pagamos?", que pergunta em qual conta anexar.
+- **Tempo real:** o que um marca aparece na hora no celular do outro (Supabase Realtime).
 - **Anexos em PDF ou foto** guardados num bucket privado, abertos por link temporário.
 - **Data de pagamento editável**, valor da conta e **contas avulsas** só de um mês (IPTU, consulta...).
 - **Destaques de prazo:** atrasadas em vermelho e as que vencem em até 3 dias no resumo.
@@ -133,6 +138,10 @@ O esquema completo, com as políticas, está em [`supabase/migrations`](supabase
   (`vence:1:2026-11:<conta>`, `tudo-pago:2026-11`), então rodar o cron duas vezes não manda nada em
   dobro. Contas de um mês que ninguém abriu ainda entram como pendentes, para o aviso de 5 dias
   funcionar na virada do mês. O "hoje" é calculado no fuso de São Paulo, já que o servidor roda em UTC.
+- **Leitura do código sem IA e sem servidor.** O pdf.js (carregado só quando precisa) extrai o texto
+  no próprio celular, e [`src/lib/codigoPagamento.ts`](src/lib/codigoPagamento.ts) procura janelas de
+  47/48 dígitos que passem pelo módulo 10/11 da Febraban, ou um Pix com CRC16 válido. Assim CPF,
+  número de instalação ou protocolo nunca são confundidos com o código, e o valor sai do próprio código.
 - **Tema com tokens.** As cores ficam em `@theme` no CSS (`bg-superficie`, `text-suave`, `bg-destaque`...),
   então trocar a paleta é mexer num lugar só. O azul das colunas foi validado contra o fundo escuro
   (contraste mínimo de 3:1).
@@ -188,6 +197,7 @@ automático a cada push na `main`.
 
 - [x] Código do boleto / Pix copia-e-cola com botão de copiar
 - [ ] Testes (Vitest) e CI no GitHub Actions
-- [ ] Atualização em tempo real entre os aparelhos (Supabase Realtime)
+- [x] Atualização em tempo real entre os aparelhos (Supabase Realtime)
+- [x] Ler o código e o valor do PDF da conta
 - [x] Lembrete de contas perto do vencimento
-- [ ] Receber o PDF direto do "Compartilhar" do celular (Web Share Target)
+- [x] Receber o PDF direto do "Compartilhar" do celular (Web Share Target)
