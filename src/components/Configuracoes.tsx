@@ -2,6 +2,7 @@ import { ArrowLeft, LogOut, Plus, Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { novoId } from '../lib/id'
 import type { Configuracao, ContaFixa, Morador, TipoConta } from '../tipos'
+import { DefinirSenha } from './DefinirSenha'
 
 interface Props {
   configuracao: Configuracao
@@ -175,6 +176,8 @@ export function Configuracoes({ configuracao, emailLogado, onSalvar, onVoltar, o
       >
         {salvando ? 'Salvando…' : 'Salvar'}
       </button>
+
+      <DefinirSenha />
 
       <button
         type="button"
