@@ -3,11 +3,13 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Configuracoes } from './components/Configuracoes'
 import { MenuInferior, type Aba } from './components/MenuInferior'
 import { TelaAno } from './components/TelaAno'
+import { TelaCompartilhado } from './components/TelaCompartilhado'
 import { TelaDoMes } from './components/TelaDoMes'
 import { TelaMetricas } from './components/TelaMetricas'
 import { TelaLogin } from './components/TelaLogin'
 import { carregarConfiguracao, salvarConfiguracao } from './dados/repositorio'
 import { supabase, supabaseConfigurado } from './dados/supabase'
+import { descartarArquivoCompartilhado, pegarArquivoCompartilhado } from './lib/compartilhado'
 import { mesAtual } from './lib/datas'
 import type { Configuracao } from './tipos'
 
@@ -36,11 +38,14 @@ function App() {
     return () => data.subscription.unsubscribe()
   }, [])
 
+  const [compartilhado, setCompartilhado] = useState<File | null>(null)
+
   useEffect(() => {
     if (!email) return
     carregarConfiguracao()
       .then(setConfiguracao)
       .catch((e: Error) => setErro(e.message))
+    pegarArquivoCompartilhado().then(setCompartilhado)
   }, [email])
 
   if (!supabaseConfigurado) {
@@ -72,6 +77,21 @@ function App() {
           Entrar com outro e-mail
         </button>
       </Aviso>
+    )
+  }
+
+  if (compartilhado) {
+    return (
+      <TelaCompartilhado
+        arquivo={compartilhado}
+        configuracao={configuracao}
+        onConcluir={async (mesEscolhido) => {
+          await descartarArquivoCompartilhado()
+          setCompartilhado(null)
+          setMes(mesEscolhido)
+          setTela('mes')
+        }}
+      />
     )
   }
 

@@ -1,6 +1,8 @@
 // Service worker do "Já pagamos?": deixa o app abrir rápido e mostrar a casca sem internet.
 // Só guarda arquivos do próprio site; chamadas ao Supabase (dados, login, anexos) nunca passam pelo cache.
-const CACHE = 'ja-pagamos-v2'
+const CACHE = 'ja-pagamos-v3'
+// Onde fica o arquivo recebido pelo "Compartilhar" até o app pegar (src/lib/compartilhado.ts).
+const CACHE_COMPARTILHADO = 'ja-pagamos-compartilhado'
 
 // Notificações mandadas pelo servidor (api/notificacoes.ts): { titulo, corpo, tag }.
 self.addEventListener('push', (evento) => {
@@ -32,7 +34,9 @@ self.addEventListener('activate', (evento) => {
   evento.waitUntil(
     caches
       .keys()
-      .then((nomes) => Promise.all(nomes.filter((n) => n !== CACHE).map((n) => caches.delete(n))))
+      .then((nomes) =>
+        Promise.all(nomes.filter((n) => n !== CACHE && n !== CACHE_COMPARTILHADO).map((n) => caches.delete(n))),
+      )
       .then(() => self.clients.claim()),
   )
 })
@@ -40,6 +44,27 @@ self.addEventListener('activate', (evento) => {
 self.addEventListener('fetch', (evento) => {
   const { request } = evento
   const url = new URL(request.url)
+
+  // "Compartilhar" do celular (share_target do manifest): guarda o arquivo e abre o app para escolher a conta.
+  if (request.method === 'POST' && url.pathname === '/compartilhar') {
+    evento.respondWith(
+      (async () => {
+        const arquivo = (await request.formData()).get('arquivo')
+        if (arquivo instanceof File) {
+          const cache = await caches.open(CACHE_COMPARTILHADO)
+          await cache.put(
+            '/compartilhado',
+            new Response(arquivo, {
+              headers: { 'content-type': arquivo.type, 'x-nome': encodeURIComponent(arquivo.name) },
+            }),
+          )
+        }
+        return Response.redirect('/?compartilhado=1', 303)
+      })(),
+    )
+    return
+  }
+
   if (request.method !== 'GET' || url.origin !== self.location.origin) return
 
   // Páginas: rede primeiro (para pegar a versão nova), cache se estiver offline.
