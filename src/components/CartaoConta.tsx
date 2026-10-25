@@ -62,8 +62,12 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
 
   async function remover() {
     if (!confirm(`Remover "${conta.nome}" deste mês?`)) return
-    await removerConta(conta)
-    onRemovida()
+    try {
+      await removerConta(conta)
+      onRemovida()
+    } catch (erro) {
+      alert(`Não foi possível remover: ${(erro as Error).message}`)
+    }
   }
 
   return (

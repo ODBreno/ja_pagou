@@ -17,13 +17,19 @@ export function NovaContaAvulsa({ mes, onAdicionada }: Props) {
 
   async function salvar(e: FormEvent) {
     e.preventDefault()
-    const conta = await adicionarContaAvulsa({
-      mes,
-      nome: nome.trim(),
-      tipo,
-      vencimento: vencimentoNoMes(mes, Number(dia)),
-    })
-    onAdicionada(conta)
+    try {
+      onAdicionada(
+        await adicionarContaAvulsa({
+          mes,
+          nome: nome.trim(),
+          tipo,
+          vencimento: vencimentoNoMes(mes, Number(dia)),
+        }),
+      )
+    } catch (erro) {
+      alert(`Não foi possível adicionar: ${(erro as Error).message}`)
+      return
+    }
     setNome('')
     setDia('')
     setAberto(false)

@@ -28,26 +28,44 @@ export function TelaDoMes({ mes, configuracao, onMudarMes, onAbrirConfiguracoes 
   const [contas, setContas] = useState<ContaDoMes[] | null>(null)
   const [aberta, setAberta] = useState<string | null>(null)
 
+  const [erro, setErro] = useState<string | null>(null)
+
+  // Recarrega ao voltar para o app, para ver o que a outra pessoa mudou nesse meio-tempo.
   useEffect(() => {
     let ativo = true
-    carregarMes(mes, configuracao.contasFixas).then((carregadas) => {
-      if (ativo) setContas(carregadas)
-    })
+    function carregar() {
+      carregarMes(mes, configuracao.contasFixas)
+        .then((carregadas) => {
+          if (!ativo) return
+          setContas(carregadas)
+          setErro(null)
+        })
+        .catch((e: Error) => ativo && setErro(e.message))
+    }
+    function aoVoltar() {
+      if (document.visibilityState === 'visible') carregar()
+    }
+    carregar()
+    document.addEventListener('visibilitychange', aoVoltar)
     return () => {
       ativo = false
+      document.removeEventListener('visibilitychange', aoVoltar)
     }
   }, [mes, configuracao])
 
   function alterar(conta: ContaDoMes) {
     setContas((atuais) => atuais?.map((c) => (c.id === conta.id ? conta : c)) ?? null)
-    salvarConta(conta)
+    salvarConta(conta).catch((e: Error) => alert(`Não foi possível salvar: ${e.message}`))
   }
 
   return (
     <div className="mx-auto max-w-md px-4 pb-10">
       <CabecalhoMes mes={mes} onMudarMes={onMudarMes} onAbrirConfiguracoes={onAbrirConfiguracoes} />
+      {erro && (
+        <p className="mb-3 rounded-xl bg-rose-500/15 p-3 text-sm text-rose-300">Erro ao carregar: {erro}</p>
+      )}
       {contas === null ? (
-        <p className="py-10 text-center text-apagado">Carregando…</p>
+        !erro && <p className="py-10 text-center text-apagado">Carregando…</p>
       ) : (
         <div className="space-y-3">
           <ResumoMes contas={contas} />
@@ -55,7 +73,7 @@ export function TelaDoMes({ mes, configuracao, onMudarMes, onAbrirConfiguracoes 
             <CartaoConta
               key={conta.id}
               conta={conta}
-              moradores={configuracao.moradores}
+              moradores={configuracao.moradores.map((m) => m.nome)}
               aberta={aberta === conta.id}
               onAlternar={() => setAberta(aberta === conta.id ? null : conta.id)}
               onAlterada={alterar}

@@ -17,6 +17,8 @@ export interface Anexo {
   tipoMime: string
   tamanho: number
   enviadoEm: string
+  /** Caminho do arquivo no bucket "anexos" do Supabase Storage. */
+  caminho: string
 }
 
 /** Uma linha da checklist de um mês específico. */
@@ -38,7 +40,13 @@ export interface ContaDoMes {
   pagoEm: string | null
 }
 
+/** Pessoa da casa; o e-mail é o do login e é o que libera o acesso aos dados. */
+export interface Morador {
+  email: string
+  nome: string
+}
+
 export interface Configuracao {
-  moradores: string[]
+  moradores: Morador[]
   contasFixas: ContaFixa[]
 }

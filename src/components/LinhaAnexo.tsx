@@ -20,6 +20,8 @@ export function LinhaAnexo({ titulo, dica, anexo, onAnexar, onRemover }: Props) 
     setEnviando(true)
     try {
       await onAnexar(arquivo)
+    } catch (erro) {
+      alert(`Não foi possível salvar o arquivo: ${(erro as Error).message}`)
     } finally {
       setEnviando(false)
       if (entrada.current) entrada.current.value = ''
@@ -42,7 +44,8 @@ export function LinhaAnexo({ titulo, dica, anexo, onAnexar, onRemover }: Props) 
           <button
             type="button"
             onClick={() => {
-              if (confirm(`Remover "${anexo.nome}"?`)) onRemover()
+              if (confirm(`Remover "${anexo.nome}"?`))
+                onRemover().catch((erro: Error) => alert(`Não foi possível remover: ${erro.message}`))
             }}
             className="rounded-full p-1.5 text-apagado hover:bg-rose-500/15 hover:text-rose-400"
             aria-label={`Remover ${titulo.toLowerCase()}`}

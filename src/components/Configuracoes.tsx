@@ -1,19 +1,29 @@
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, LogOut, Plus, Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { novoId } from '../lib/id'
-import type { Configuracao, ContaFixa, TipoConta } from '../tipos'
+import type { Configuracao, ContaFixa, Morador, TipoConta } from '../tipos'
 
 interface Props {
   configuracao: Configuracao
+  emailLogado: string
   onSalvar: (configuracao: Configuracao) => Promise<void>
   onVoltar: () => void
+  onSair: () => void
 }
 
 const campo = 'rounded-lg border border-borda bg-elevado px-3 py-2 outline-none focus:border-destaque'
 
-export function Configuracoes({ configuracao, onSalvar, onVoltar }: Props) {
-  const [moradores, setMoradores] = useState(configuracao.moradores)
+/** novo: o e-mail só pode ser digitado ao adicionar a pessoa (ele é a chave do acesso). */
+type MoradorEditavel = Morador & { novo?: boolean }
+
+export function Configuracoes({ configuracao, emailLogado, onSalvar, onVoltar, onSair }: Props) {
+  const [moradores, setMoradores] = useState<MoradorEditavel[]>(configuracao.moradores)
   const [contasFixas, setContasFixas] = useState(configuracao.contasFixas)
+  const [salvando, setSalvando] = useState(false)
+
+  function alterarMorador(i: number, mudanca: Partial<Morador>) {
+    setMoradores(moradores.map((m, j) => (j === i ? { ...m, ...mudanca } : m)))
+  }
 
   function alterarFixa(id: string, mudanca: Partial<ContaFixa>) {
     setContasFixas(contasFixas.map((c) => (c.id === id ? { ...c, ...mudanca } : c)))
@@ -21,13 +31,22 @@ export function Configuracoes({ configuracao, onSalvar, onVoltar }: Props) {
 
   async function salvar(e: FormEvent) {
     e.preventDefault()
-    await onSalvar({
-      moradores: moradores.map((m) => m.trim()).filter(Boolean),
-      contasFixas: contasFixas
-        .map((c) => ({ ...c, nome: c.nome.trim(), diaVencimento: Math.min(31, Math.max(1, c.diaVencimento || 1)) }))
-        .filter((c) => c.nome)
-        .sort((a, b) => a.diaVencimento - b.diaVencimento),
-    })
+    setSalvando(true)
+    try {
+      await onSalvar({
+        moradores: moradores
+          .map((m) => ({ email: m.email.trim().toLowerCase(), nome: m.nome.trim() }))
+          .filter((m) => m.email && m.nome),
+        contasFixas: contasFixas
+          .map((c) => ({ ...c, nome: c.nome.trim(), diaVencimento: Math.min(31, Math.max(1, c.diaVencimento || 1)) }))
+          .filter((c) => c.nome)
+          .sort((a, b) => a.diaVencimento - b.diaVencimento),
+      })
+    } catch (erro) {
+      alert(`Não foi possível salvar: ${(erro as Error).message}`)
+    } finally {
+      setSalvando(false)
+    }
   }
 
   return (
@@ -47,29 +66,44 @@ export function Configuracoes({ configuracao, onSalvar, onVoltar }: Props) {
       <section className="space-y-3 rounded-2xl bg-superficie p-4 ring-1 ring-borda">
         <div>
           <h2 className="font-semibold">Quem mora aqui</h2>
-          <p className="text-sm text-suave">Aparece no "quem vai pagar" de cada conta.</p>
+          <p className="text-sm text-suave">Quem está aqui consegue entrar no app com o próprio e-mail.</p>
         </div>
-        {moradores.map((nome, i) => (
-          <div key={i} className="flex gap-2">
-            <input
-              value={nome}
-              placeholder="Nome"
-              onChange={(e) => setMoradores(moradores.map((m, j) => (j === i ? e.target.value : m)))}
-              className={`${campo} flex-1`}
-            />
-            <button
-              type="button"
-              onClick={() => setMoradores(moradores.filter((_, j) => j !== i))}
-              className="rounded-full p-2 text-apagado hover:text-rose-400"
-              aria-label={`Remover ${nome}`}
-            >
-              <Trash2 size={18} />
-            </button>
+        {moradores.map((morador, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <div className="min-w-0 flex-1 space-y-2">
+              <input
+                value={morador.nome}
+                placeholder="Nome"
+                onChange={(e) => alterarMorador(i, { nome: e.target.value })}
+                className={`${campo} w-full`}
+              />
+              {morador.novo ? (
+                <input
+                  type="email"
+                  value={morador.email}
+                  placeholder="E-mail de login"
+                  onChange={(e) => alterarMorador(i, { email: e.target.value })}
+                  className={`${campo} w-full text-sm`}
+                />
+              ) : (
+                <p className="truncate px-1 text-xs text-apagado">{morador.email}</p>
+              )}
+            </div>
+            {morador.email !== emailLogado && (
+              <button
+                type="button"
+                onClick={() => setMoradores(moradores.filter((_, j) => j !== i))}
+                className="rounded-full p-2 text-apagado hover:text-rose-400"
+                aria-label={`Remover ${morador.nome}`}
+              >
+                <Trash2 size={18} />
+              </button>
+            )}
           </div>
         ))}
         <button
           type="button"
-          onClick={() => setMoradores([...moradores, ''])}
+          onClick={() => setMoradores([...moradores, { email: '', nome: '', novo: true }])}
           className="flex items-center gap-1.5 text-sm font-medium text-destaque-claro"
         >
           <Plus size={16} /> Adicionar pessoa
@@ -134,8 +168,20 @@ export function Configuracoes({ configuracao, onSalvar, onVoltar }: Props) {
         </button>
       </section>
 
-      <button type="submit" className="w-full rounded-xl bg-destaque py-3 font-semibold text-white">
-        Salvar
+      <button
+        type="submit"
+        disabled={salvando}
+        className="w-full rounded-xl bg-destaque py-3 font-semibold text-white disabled:opacity-50"
+      >
+        {salvando ? 'Salvando…' : 'Salvar'}
+      </button>
+
+      <button
+        type="button"
+        onClick={onSair}
+        className="mx-auto flex items-center gap-2 text-sm text-suave hover:text-rose-400"
+      >
+        <LogOut size={16} /> Sair ({emailLogado})
       </button>
     </form>
   )
