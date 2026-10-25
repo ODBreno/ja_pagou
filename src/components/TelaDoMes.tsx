@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { avisarMesTodoPago } from '../dados/notificacoes'
 import { carregarMes, salvarConta } from '../dados/repositorio'
+import { supabase } from '../dados/supabase'
 import { statusDa } from '../lib/status'
 import type { Configuracao, ContaDoMes } from '../tipos'
 import { CabecalhoMes } from './CabecalhoMes'
@@ -46,10 +47,23 @@ export function TelaDoMes({ mes, configuracao, onMudarMes, onAbrirConfiguracoes 
     function aoVoltar() {
       if (document.visibilityState === 'visible') carregar()
     }
+    // Tempo real: quando a outra pessoa muda uma conta deste mês, recarrega
+    // (com um respiro, para várias mudanças seguidas virarem uma recarga só).
+    let espera: ReturnType<typeof setTimeout> | undefined
+    const canal = supabase
+      .channel(`contas-${mes}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contas_do_mes', filter: `mes=eq.${mes}` }, () => {
+        clearTimeout(espera)
+        espera = setTimeout(carregar, 500)
+      })
+      .subscribe()
+
     carregar()
     document.addEventListener('visibilitychange', aoVoltar)
     return () => {
       ativo = false
+      clearTimeout(espera)
+      supabase.removeChannel(canal)
       document.removeEventListener('visibilitychange', aoVoltar)
     }
   }, [mes, configuracao])
