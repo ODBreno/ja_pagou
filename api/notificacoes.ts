@@ -3,7 +3,11 @@
 //   POST (app, com o login do morador): { acao: 'teste' } ou { acao: 'tudo-pago', mes }.
 // Usa a chave secreta do Supabase (ignora o RLS), então toda entrada é validada aqui.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import webpush from 'web-push'
+import * as webpushModulo from 'web-push'
+
+// web-push é CommonJS: dependendo de como a Vercel compila, as funções vêm no namespace ou no default.
+const webpush = ((webpushModulo as unknown as { default?: typeof webpushModulo }).default ??
+  webpushModulo) as typeof webpushModulo
 
 interface Conta {
   id: string
@@ -137,8 +141,9 @@ export function montarAvisoTudoPago(mes: string, quantidade: number): Aviso {
 
 // ---- Daqui para baixo: banco e envio ----
 
+/** trim: valor colado no painel com espaço ou quebra de linha no fim quebra as chaves. */
 function variavel(nome: string, ...alternativas: string[]): string {
-  for (const n of [nome, ...alternativas]) if (process.env[n]) return process.env[n]!
+  for (const n of [nome, ...alternativas]) if (process.env[n]?.trim()) return process.env[n]!.trim()
   throw new Error(`Variável de ambiente ${nome} não configurada`)
 }
 
@@ -148,11 +153,15 @@ function clienteAdmin(): SupabaseClient {
 }
 
 function configurarVapid(origem: string) {
-  webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || origem,
-    variavel('VAPID_PUBLIC_KEY', 'VITE_VAPID_PUBLIC_KEY'),
-    variavel('VAPID_PRIVATE_KEY'),
-  )
+  try {
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT?.trim() || origem,
+      variavel('VAPID_PUBLIC_KEY', 'VITE_VAPID_PUBLIC_KEY'),
+      variavel('VAPID_PRIVATE_KEY'),
+    )
+  } catch (erro) {
+    throw new Error(`Chaves VAPID inválidas: ${(erro as Error).message}`)
+  }
 }
 
 /** Manda para os aparelhos inscritos (todos, ou só os de um e-mail) e limpa inscrições expiradas. */
@@ -160,7 +169,7 @@ async function enviar(banco: SupabaseClient, aviso: Aviso, email?: string): Prom
   let consulta = banco.from('inscricoes_push').select('endpoint, p256dh, auth')
   if (email) consulta = consulta.eq('email', email)
   const { data: inscricoes, error } = await consulta
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(`Erro ao ler inscricoes_push: ${error.message}`)
 
   const payload = JSON.stringify({ titulo: aviso.titulo, corpo: aviso.corpo, tag: aviso.tag })
   let enviados = 0
@@ -173,7 +182,7 @@ async function enviar(banco: SupabaseClient, aviso: Aviso, email?: string): Prom
     } catch (erro) {
       const status = (erro as { statusCode?: number }).statusCode
       if (status === 404 || status === 410) await banco.from('inscricoes_push').delete().eq('endpoint', i.endpoint)
-      else console.error('Falha ao enviar push', status, (erro as Error).message)
+      else console.error('Falha ao enviar push', status, (erro as { body?: string }).body ?? (erro as Error).message)
     }
   }
   return enviados
@@ -187,8 +196,20 @@ async function registrarEnviados(banco: SupabaseClient, chaves: string[]) {
 const json = (corpo: unknown, status = 200) =>
   new Response(JSON.stringify(corpo), { status, headers: { 'content-type': 'application/json' } })
 
+/** Erro inesperado vira JSON com a mensagem (aparece no app e no log da Vercel) em vez de um 500 mudo. */
+function comTratamento(handler: (request: Request) => Promise<Response>) {
+  return async (request: Request): Promise<Response> => {
+    try {
+      return await handler(request)
+    } catch (erro) {
+      console.error(erro)
+      return json({ erro: (erro as Error).message }, 500)
+    }
+  }
+}
+
 /** Vercel Cron: a Vercel manda "Authorization: Bearer <CRON_SECRET>". */
-export async function GET(request: Request): Promise<Response> {
+export const GET = comTratamento(async (request) => {
   if (request.headers.get('authorization') !== `Bearer ${variavel('CRON_SECRET')}`) {
     return json({ erro: 'não autorizado' }, 401)
   }
@@ -220,10 +241,10 @@ export async function GET(request: Request): Promise<Response> {
     resultado.push({ titulo: aviso.titulo, aparelhos: quantos })
   }
   return json({ hoje, avisos: resultado })
-}
+})
 
 /** Chamado pelo app com o token do morador logado. */
-export async function POST(request: Request): Promise<Response> {
+export const POST = comTratamento(async (request) => {
   const token = request.headers.get('authorization')?.replace(/^Bearer /, '')
   const banco = clienteAdmin()
   const { data: usuario } = await banco.auth.getUser(token)
@@ -242,7 +263,11 @@ export async function POST(request: Request): Promise<Response> {
       corpo: 'É assim que os lembretes das contas vão aparecer.',
       tag: 'teste',
     }
-    return json({ aparelhos: await enviar(banco, aviso, email) })
+    const quantos = await enviar(banco, aviso, email)
+    if (quantos === 0) {
+      return json({ erro: 'Nenhum aparelho recebeu. Desative e ative as notificações de novo neste aparelho.' }, 500)
+    }
+    return json({ aparelhos: quantos })
   }
 
   if (corpo.acao === 'tudo-pago' && /^\d{4}-\d{2}$/.test(corpo.mes ?? '')) {
@@ -261,4 +286,4 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   return json({ erro: 'ação inválida' }, 400)
-}
+})

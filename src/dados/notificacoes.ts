@@ -68,7 +68,16 @@ async function chamarServidor(corpo: Record<string, string>): Promise<void> {
     headers: { 'content-type': 'application/json', authorization: `Bearer ${data.session?.access_token}` },
     body: JSON.stringify(corpo),
   })
-  if (!resposta.ok) throw new Error(await resposta.text())
+  if (!resposta.ok) {
+    const texto = await resposta.text()
+    let mensagem = texto
+    try {
+      mensagem = (JSON.parse(texto) as { erro?: string }).erro ?? texto
+    } catch {
+      // resposta não era JSON (ex.: erro da própria Vercel)
+    }
+    throw new Error(mensagem || `erro ${resposta.status}`)
+  }
 }
 
 export function enviarNotificacaoDeTeste(): Promise<void> {
