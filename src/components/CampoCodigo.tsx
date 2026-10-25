@@ -3,12 +3,11 @@ import { BotaoCopiar } from './BotaoCopiar'
 
 interface Props {
   codigo: string | null
-  placeholder: string
   onMudar: (codigo: string | null) => void
 }
 
 /** Código de pagamento colável (boleto, Pix copia e cola, chave Pix) com botão de copiar. */
-export function CampoCodigo({ codigo, placeholder, onMudar }: Props) {
+export function CampoCodigo({ codigo, onMudar }: Props) {
   const [texto, setTexto] = useState(codigo ?? '')
 
   function confirmar() {
@@ -21,7 +20,6 @@ export function CampoCodigo({ codigo, placeholder, onMudar }: Props) {
       <textarea
         rows={texto.length > 60 ? 3 : 1}
         value={texto}
-        placeholder={placeholder}
         spellCheck={false}
         onChange={(e) => setTexto(e.target.value)}
         onBlur={confirmar}

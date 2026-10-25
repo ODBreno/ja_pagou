@@ -112,11 +112,6 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
               <CampoCodigo
                 key={conta.codigoPagamento ?? ''}
                 codigo={conta.codigoPagamento}
-                placeholder={
-                  conta.tipo === 'debito'
-                    ? 'Cole a chave Pix ou o código'
-                    : 'Cole a linha digitável do boleto ou o Pix copia e cola'
-                }
                 onMudar={(codigoPagamento) => onAlterada({ ...conta, codigoPagamento })}
               />
             </div>

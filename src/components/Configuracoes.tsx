@@ -27,8 +27,23 @@ export function Configuracoes({ configuracao, emailLogado, onSalvar, onVoltar, o
     setMoradores(moradores.map((m, j) => (j === i ? { ...m, ...mudanca } : m)))
   }
 
+  // Contas com valor/código fixo mostram os dois campos; as outras ficam só com o checkbox.
+  const [comValorFixo, setComValorFixo] = useState(
+    () => new Set(configuracao.contasFixas.filter((c) => c.valorPadrao != null || c.codigoPagamento).map((c) => c.id)),
+  )
+
   function alterarFixa(id: string, mudanca: Partial<ContaFixa>) {
-    setContasFixas(contasFixas.map((c) => (c.id === id ? { ...c, ...mudanca } : c)))
+    setContasFixas((atuais) => atuais.map((c) => (c.id === id ? { ...c, ...mudanca } : c)))
+  }
+
+  function alternarValorFixo(id: string, ligado: boolean) {
+    const ids = new Set(comValorFixo)
+    if (ligado) ids.add(id)
+    else {
+      ids.delete(id)
+      alterarFixa(id, { valorPadrao: null, codigoPagamento: null })
+    }
+    setComValorFixo(ids)
   }
 
   async function salvar(e: FormEvent) {
@@ -164,24 +179,36 @@ export function Configuracoes({ configuracao, emailLogado, onSalvar, onVoltar, o
                 <option value="debito">Débito automático</option>
               </select>
             </div>
-            <div>
-              <p className="mb-1 text-xs text-suave">Valor fixo (opcional)</p>
-              <CampoValor
-                valor={conta.valorPadrao}
-                onMudar={(valorPadrao) => alterarFixa(conta.id, { valorPadrao })}
-              />
-            </div>
-            <div>
-              <p className="mb-1 text-xs text-suave">
-                {conta.tipo === 'debito' ? 'Chave Pix para mandar todo mês (opcional)' : 'Código fixo para pagar (opcional)'}
-              </p>
+            <label className="flex w-fit items-center gap-2 text-sm text-suave">
               <input
-                value={conta.codigoPagamento ?? ''}
-                placeholder={conta.tipo === 'debito' ? 'CPF, e-mail, celular ou chave aleatória' : 'Se o código não muda de um mês para o outro'}
-                onChange={(e) => alterarFixa(conta.id, { codigoPagamento: e.target.value })}
-                className={`${campo} w-full font-mono text-sm`}
+                type="checkbox"
+                checked={comValorFixo.has(conta.id)}
+                onChange={(e) => alternarValorFixo(conta.id, e.target.checked)}
+                className="size-4 accent-destaque"
               />
-            </div>
+              Valor fixo
+            </label>
+            {comValorFixo.has(conta.id) && (
+              <>
+                <div>
+                  <p className="mb-1 text-xs text-suave">Valor todo mês</p>
+                  <CampoValor
+                    valor={conta.valorPadrao}
+                    onMudar={(valorPadrao) => alterarFixa(conta.id, { valorPadrao })}
+                  />
+                </div>
+                <div>
+                  <p className="mb-1 text-xs text-suave">
+                    {conta.tipo === 'debito' ? 'Chave Pix (opcional)' : 'Código para pagar (opcional)'}
+                  </p>
+                  <input
+                    value={conta.codigoPagamento ?? ''}
+                    onChange={(e) => alterarFixa(conta.id, { codigoPagamento: e.target.value })}
+                    className={`${campo} w-full font-mono text-sm`}
+                  />
+                </div>
+              </>
+            )}
           </div>
         ))}
         <button
