@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { avisarMesTodoPago } from '../dados/notificacoes'
 import { carregarMes, salvarConta } from '../dados/repositorio'
 import { statusDa } from '../lib/status'
 import type { Configuracao, ContaDoMes } from '../tipos'
@@ -54,8 +55,16 @@ export function TelaDoMes({ mes, configuracao, onMudarMes, onAbrirConfiguracoes 
   }, [mes, configuracao])
 
   function alterar(conta: ContaDoMes) {
-    setContas((atuais) => atuais?.map((c) => (c.id === conta.id ? conta : c)) ?? null)
-    salvarConta(conta).catch((e: Error) => alert(`Não foi possível salvar: ${e.message}`))
+    const novas = contas?.map((c) => (c.id === conta.id ? conta : c)) ?? []
+    const todasPagas = (lista: ContaDoMes[]) => lista.length > 0 && lista.every((c) => statusDa(c) === 'pago')
+    const acabouDePagarTudo = todasPagas(novas) && !todasPagas(contas ?? [])
+    setContas(novas)
+    salvarConta(conta)
+      // Depois de salvo, para o servidor ver o mês já todo pago; falha aqui não atrapalha o uso.
+      .then(() => {
+        if (acabouDePagarTudo) avisarMesTodoPago(mes).catch(() => {})
+      })
+      .catch((e: Error) => alert(`Não foi possível salvar: ${e.message}`))
   }
 
   return (

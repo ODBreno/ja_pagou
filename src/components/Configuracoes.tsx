@@ -4,6 +4,7 @@ import { novoId } from '../lib/id'
 import type { Configuracao, ContaFixa, Morador, TipoConta } from '../tipos'
 import { CampoValor } from './CampoValor'
 import { DefinirSenha } from './DefinirSenha'
+import { SecaoNotificacoes } from './SecaoNotificacoes'
 
 interface Props {
   configuracao: Configuracao
@@ -227,6 +228,8 @@ export function Configuracoes({ configuracao, emailLogado, onSalvar, onVoltar, o
       >
         {salvando ? 'Salvando…' : 'Salvar'}
       </button>
+
+      <SecaoNotificacoes email={emailLogado} />
 
       <DefinirSenha />
 

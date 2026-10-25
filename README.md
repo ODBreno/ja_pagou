@@ -52,6 +52,8 @@ guarda o PDF (ou foto) da conta e o comprovante, e o status muda conforme os ane
 - **Métricas por conta:** último mês, média, variação e gráfico de colunas, com tabela.
 - **Dois moradores, mesmos dados:** login por senha ou link no e-mail, acesso liberado por e-mail.
 - **PWA:** instalável no celular, com ícone próprio e tema escuro.
+- **Notificações push:** lembrete no começo do mês, 5 dias antes, 1 dia antes e no dia do vencimento
+  (só se ainda não tiver comprovante), e uma comemoração quando o mês inteiro fica pago.
 
 ## Arquitetura
 
@@ -71,15 +73,28 @@ flowchart LR
     RLS{{"RLS: eh_morador()"}}
   end
 
-  Vercel["Vercel<br/>build e hospedagem"] -.-> UI
+  subgraph Vercel
+    Hosting["Build e hospedagem"]
+    Cron(["Cron diário"])
+    Funcao["api/notificacoes.ts"]
+  end
+
+  Push["Web Push<br/>(FCM / APNs)"]
+
+  Hosting -.-> UI
   Repo -->|"supabase-js"| Auth
   Repo --> RLS
   RLS --> DB
   RLS --> Storage
+  Cron --> Funcao
+  Repo -->|"mês todo pago"| Funcao
+  Funcao -->|"chave secreta"| DB
+  Funcao --> Push --> SW
 ```
 
-Não existe backend próprio: o front fala direto com o Supabase, e **quem protege os dados é o
-Postgres**, com Row Level Security. Toda a leitura e escrita passa por um único módulo
+O app em si não tem backend próprio: o front fala direto com o Supabase, e **quem protege os dados é
+o Postgres**, com Row Level Security. A única função de servidor é a das notificações, que roda na
+Vercel uma vez por dia (e quando o mês fecha) e usa a chave secreta do Supabase. Toda a leitura e escrita passa por um único módulo
 ([`src/dados/repositorio.ts`](src/dados/repositorio.ts)), que converte o formato do banco
 (`snake_case`) para o do app e concentra as regras de sincronização.
 
@@ -113,6 +128,11 @@ O esquema completo, com as políticas, está em [`supabase/migrations`](supabase
 - **Service worker conservador.** Ele só guarda os arquivos do próprio site (rede primeiro para a
   página, cache primeiro para os arquivos com hash). Dados, login e anexos nunca passam pelo cache, para
   ninguém ver uma conta "pendente" que já foi paga.
+- **Notificações sem aviso repetido.** A regra do que avisar é uma função pura (`montarAvisosDoDia`),
+  testável sem banco. Cada aviso mandado vira uma chave em `avisos_enviados`
+  (`vence:1:2026-11:<conta>`, `tudo-pago:2026-11`), então rodar o cron duas vezes não manda nada em
+  dobro. Contas de um mês que ninguém abriu ainda entram como pendentes, para o aviso de 5 dias
+  funcionar na virada do mês. O "hoje" é calculado no fuso de São Paulo, já que o servidor roda em UTC.
 - **Tema com tokens.** As cores ficam em `@theme` no CSS (`bg-superficie`, `text-suave`, `bg-destaque`...),
   então trocar a paleta é mexer num lugar só. O azul das colunas foi validado contra o fundo escuro
   (contraste mínimo de 3:1).
@@ -169,5 +189,5 @@ automático a cada push na `main`.
 - [x] Código do boleto / Pix copia-e-cola com botão de copiar
 - [ ] Testes (Vitest) e CI no GitHub Actions
 - [ ] Atualização em tempo real entre os aparelhos (Supabase Realtime)
-- [ ] Lembrete de contas perto do vencimento
+- [x] Lembrete de contas perto do vencimento
 - [ ] Receber o PDF direto do "Compartilhar" do celular (Web Share Target)
