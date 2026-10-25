@@ -1,10 +1,12 @@
 import { ChevronDown, FileText, Repeat, Trash2 } from 'lucide-react'
-import { useState } from 'react'
 import { anexarArquivo, removerAnexo, removerConta } from '../dados/repositorio'
 import { diaEMes, diasAte, hoje } from '../lib/datas'
-import { formatarReais, lerValor, valorParaTexto } from '../lib/dinheiro'
+import { formatarReais, valorParaTexto } from '../lib/dinheiro'
 import { estaAtrasada, statusDa, type Status } from '../lib/status'
 import type { CampoAnexo, ContaDoMes } from '../tipos'
+import { BotaoCopiar } from './BotaoCopiar'
+import { CampoCodigo } from './CampoCodigo'
+import { CampoValor } from './CampoValor'
 import { LinhaAnexo } from './LinhaAnexo'
 
 interface Props {
@@ -43,14 +45,7 @@ function textoVencimento(conta: ContaDoMes, status: Status): string {
 export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, onRemovida }: Props) {
   const status = statusDa(conta)
   const atrasada = estaAtrasada(conta)
-  const [textoValor, setTextoValor] = useState(valorParaTexto(conta.valor))
   const Icone = conta.tipo === 'debito' ? Repeat : FileText
-
-  function confirmarValor() {
-    const valor = lerValor(textoValor)
-    setTextoValor(valorParaTexto(valor))
-    if (valor !== conta.valor) onAlterada({ ...conta, valor })
-  }
 
   async function anexar(campo: CampoAnexo, arquivo: File) {
     onAlterada(await anexarArquivo(conta, campo, arquivo))
@@ -109,21 +104,37 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
               : 'Anexe a conta quando ela chegar e o comprovante depois de pagar.'}
           </p>
 
-          <label className="block">
-            <span className="text-xs font-semibold tracking-wide text-suave uppercase">Valor</span>
-            <div className="mt-1 flex items-center rounded-lg border border-borda px-3 focus-within:border-destaque">
-              <span className="text-sm text-apagado">R$</span>
-              <input
-                inputMode="decimal"
-                placeholder="0,00"
-                value={textoValor}
-                onChange={(e) => setTextoValor(e.target.value)}
-                onBlur={confirmarValor}
-                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-                className="w-full bg-transparent px-2 py-2 outline-none"
+          {(status !== 'pago' || conta.codigoPagamento) && (
+            <div>
+              <p className="mb-1 text-xs font-semibold tracking-wide text-suave uppercase">
+                {conta.tipo === 'debito' ? 'Chave Pix / código' : 'Código para pagar'}
+              </p>
+              <CampoCodigo
+                key={conta.codigoPagamento ?? ''}
+                codigo={conta.codigoPagamento}
+                placeholder={
+                  conta.tipo === 'debito'
+                    ? 'Cole a chave Pix ou o código'
+                    : 'Cole a linha digitável do boleto ou o Pix copia e cola'
+                }
+                onMudar={(codigoPagamento) => onAlterada({ ...conta, codigoPagamento })}
               />
             </div>
-          </label>
+          )}
+
+          <div>
+            <p className="mb-1 text-xs font-semibold tracking-wide text-suave uppercase">Valor</p>
+            <CampoValor
+              key={conta.valor ?? ''}
+              valor={conta.valor}
+              onMudar={(valor) => onAlterada({ ...conta, valor })}
+              acessorio={
+                conta.valor != null && (
+                  <BotaoCopiar texto={valorParaTexto(conta.valor)} rotulo="Copiar valor" compacto />
+                )
+              }
+            />
+          </div>
 
           {status === 'pago' && (
             <label className="block">

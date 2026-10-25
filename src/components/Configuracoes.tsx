@@ -2,6 +2,7 @@ import { ArrowLeft, LogOut, Plus, Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { novoId } from '../lib/id'
 import type { Configuracao, ContaFixa, Morador, TipoConta } from '../tipos'
+import { CampoValor } from './CampoValor'
 import { DefinirSenha } from './DefinirSenha'
 
 interface Props {
@@ -39,7 +40,12 @@ export function Configuracoes({ configuracao, emailLogado, onSalvar, onVoltar, o
           .map((m) => ({ email: m.email.trim().toLowerCase(), nome: m.nome.trim() }))
           .filter((m) => m.email && m.nome),
         contasFixas: contasFixas
-          .map((c) => ({ ...c, nome: c.nome.trim(), diaVencimento: Math.min(31, Math.max(1, c.diaVencimento || 1)) }))
+          .map((c) => ({
+            ...c,
+            nome: c.nome.trim(),
+            diaVencimento: Math.min(31, Math.max(1, c.diaVencimento || 1)),
+            codigoPagamento: c.codigoPagamento?.trim() || null,
+          }))
           .filter((c) => c.nome)
           .sort((a, b) => a.diaVencimento - b.diaVencimento),
       })
@@ -158,11 +164,29 @@ export function Configuracoes({ configuracao, emailLogado, onSalvar, onVoltar, o
                 <option value="debito">Débito automático</option>
               </select>
             </div>
+            <div>
+              <p className="mb-1 text-xs text-suave">Valor fixo (opcional)</p>
+              <CampoValor
+                valor={conta.valorPadrao}
+                onMudar={(valorPadrao) => alterarFixa(conta.id, { valorPadrao })}
+              />
+            </div>
+            <div>
+              <p className="mb-1 text-xs text-suave">
+                {conta.tipo === 'debito' ? 'Chave Pix para mandar todo mês (opcional)' : 'Código fixo para pagar (opcional)'}
+              </p>
+              <input
+                value={conta.codigoPagamento ?? ''}
+                placeholder={conta.tipo === 'debito' ? 'CPF, e-mail, celular ou chave aleatória' : 'Se o código não muda de um mês para o outro'}
+                onChange={(e) => alterarFixa(conta.id, { codigoPagamento: e.target.value })}
+                className={`${campo} w-full font-mono text-sm`}
+              />
+            </div>
           </div>
         ))}
         <button
           type="button"
-          onClick={() => setContasFixas([...contasFixas, { id: novoId(), nome: '', diaVencimento: 10, tipo: 'boleto' }])}
+          onClick={() => setContasFixas([...contasFixas, { id: novoId(), nome: '', diaVencimento: 10, tipo: 'boleto', valorPadrao: null, codigoPagamento: null }])}
           className="flex items-center gap-1.5 text-sm font-medium text-destaque-claro"
         >
           <Plus size={16} /> Adicionar conta fixa

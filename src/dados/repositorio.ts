@@ -15,6 +15,8 @@ interface LinhaContaFixa {
   nome: string
   dia_vencimento: number
   tipo: TipoConta
+  valor_padrao: number | string | null
+  codigo_pagamento: string | null
 }
 
 interface LinhaContaDoMes {
@@ -25,11 +27,15 @@ interface LinhaContaDoMes {
   tipo: TipoConta
   vencimento: string
   valor: number | string | null
+  codigo_pagamento: string | null
   responsavel: string | null
   conta: Anexo | null
   comprovante: Anexo | null
   pago_em: string | null
 }
+
+/** O Postgres devolve numeric como texto em alguns casos; aqui vira número. */
+const paraNumero = (v: number | string | null) => (v == null ? null : Number(v))
 
 function exigir<T>({ data, error }: { data: T | null; error: PostgrestError | null }): T {
   if (error) throw new Error(error.message)
@@ -44,7 +50,8 @@ function daLinha(l: LinhaContaDoMes): ContaDoMes {
     nome: l.nome,
     tipo: l.tipo,
     vencimento: l.vencimento,
-    valor: l.valor == null ? null : Number(l.valor),
+    valor: paraNumero(l.valor),
+    codigoPagamento: l.codigo_pagamento,
     responsavel: l.responsavel,
     conta: l.conta,
     comprovante: l.comprovante,
@@ -60,6 +67,7 @@ function paraLinha(c: Omit<ContaDoMes, 'id'>): Omit<LinhaContaDoMes, 'id'> {
     tipo: c.tipo,
     vencimento: c.vencimento,
     valor: c.valor,
+    codigo_pagamento: c.codigoPagamento,
     responsavel: c.responsavel,
     conta: c.conta,
     comprovante: c.comprovante,
@@ -72,7 +80,7 @@ export async function carregarConfiguracao(): Promise<Configuracao> {
     supabase.from('moradores').select('email, nome').order('nome'),
     supabase
       .from('contas_fixas')
-      .select('id, nome, dia_vencimento, tipo')
+      .select('id, nome, dia_vencimento, tipo, valor_padrao, codigo_pagamento')
       .eq('ativa', true)
       .order('dia_vencimento'),
   ])
@@ -83,6 +91,8 @@ export async function carregarConfiguracao(): Promise<Configuracao> {
       nome: f.nome,
       diaVencimento: f.dia_vencimento,
       tipo: f.tipo,
+      valorPadrao: paraNumero(f.valor_padrao),
+      codigoPagamento: f.codigo_pagamento,
     })),
   }
 }
@@ -95,7 +105,13 @@ export async function salvarConfiguracao(nova: Configuracao, anterior: Configura
   if (moradoresRemovidos.length) exigir(await supabase.from('moradores').delete().in('email', moradoresRemovidos))
 
   const idsAnteriores = new Set(anterior.contasFixas.map((c) => c.id))
-  const paraBanco = (c: ContaFixa) => ({ nome: c.nome, dia_vencimento: c.diaVencimento, tipo: c.tipo })
+  const paraBanco = (c: ContaFixa) => ({
+    nome: c.nome,
+    dia_vencimento: c.diaVencimento,
+    tipo: c.tipo,
+    valor_padrao: c.valorPadrao,
+    codigo_pagamento: c.codigoPagamento,
+  })
   const existentes = nova.contasFixas.filter((c) => idsAnteriores.has(c.id))
   const novas = nova.contasFixas.filter((c) => !idsAnteriores.has(c.id))
   const idsNovos = new Set(existentes.map((c) => c.id))
@@ -119,7 +135,8 @@ function novaContaDoMes(mes: string, fixa: ContaFixa): Omit<ContaDoMes, 'id'> {
     nome: fixa.nome,
     tipo: fixa.tipo,
     vencimento: vencimentoNoMes(mes, fixa.diaVencimento),
-    valor: null,
+    valor: fixa.valorPadrao,
+    codigoPagamento: fixa.codigoPagamento,
     responsavel: null,
     conta: null,
     comprovante: null,
@@ -129,7 +146,8 @@ function novaContaDoMes(mes: string, fixa: ContaFixa): Omit<ContaDoMes, 'id'> {
 
 /**
  * Meses que já passaram ficam como estão; o atual e os futuros acompanham as contas fixas:
- * cria as que faltam, atualiza nome/tipo/vencimento das não pagas e tira as desativadas sem anexo.
+ * cria as que faltam, atualiza nome/tipo/vencimento das não pagas (e preenche valor e código
+ * se ainda estiverem vazios) e tira as desativadas sem anexo.
  */
 export async function carregarMes(mes: string, fixas: ContaFixa[]): Promise<ContaDoMes[]> {
   const contas = await buscarMes(mes)
@@ -139,9 +157,20 @@ export async function carregarMes(mes: string, fixas: ContaFixa[]): Promise<Cont
   const desatualizadas = contas.flatMap((c) => {
     const fixa = !c.comprovante && fixas.find((f) => f.id === c.contaFixaId)
     if (!fixa) return []
-    const vencimento = vencimentoNoMes(mes, fixa.diaVencimento)
-    if (c.nome === fixa.nome && c.tipo === fixa.tipo && c.vencimento === vencimento) return []
-    return [{ id: c.id, nome: fixa.nome, tipo: fixa.tipo, vencimento }]
+    const mudanca = {
+      nome: fixa.nome,
+      tipo: fixa.tipo,
+      vencimento: vencimentoNoMes(mes, fixa.diaVencimento),
+      valor: c.valor ?? fixa.valorPadrao,
+      codigo_pagamento: c.codigoPagamento ?? fixa.codigoPagamento,
+    }
+    const igual =
+      c.nome === mudanca.nome &&
+      c.tipo === mudanca.tipo &&
+      c.vencimento === mudanca.vencimento &&
+      c.valor === mudanca.valor &&
+      c.codigoPagamento === mudanca.codigo_pagamento
+    return igual ? [] : [{ id: c.id, ...mudanca }]
   })
   const orfas = contas
     .filter((c) => c.contaFixaId && !c.conta && !c.comprovante && !fixas.some((f) => f.id === c.contaFixaId))
@@ -202,6 +231,7 @@ export async function adicionarContaAvulsa(
           ...dados,
           contaFixaId: null,
           valor: null,
+          codigoPagamento: null,
           responsavel: null,
           conta: null,
           comprovante: null,

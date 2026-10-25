@@ -43,6 +43,8 @@ guarda o PDF (ou foto) da conta e o comprovante, e o status muda conforme os ane
 - **Status pelos anexos:** sem conta → _aguardando conta_; com a conta → _a pagar_; com o comprovante
   → _pago_. Débito automático pula a primeira etapa e já começa como _mandar Pix_.
 - **Quem vai pagar:** cada conta pode ter um responsável.
+- **Código para pagar com um toque:** linha digitável, Pix copia e cola ou chave Pix com botão
+  **Copiar**, e valor copiável. Contas fixas podem ter valor e chave Pix que entram sozinhos todo mês.
 - **Anexos em PDF ou foto** guardados num bucket privado, abertos por link temporário.
 - **Data de pagamento editável**, valor da conta e **contas avulsas** só de um mês (IPTU, consulta...).
 - **Destaques de prazo:** atrasadas em vermelho e as que vencem em até 3 dias no resumo.
@@ -86,11 +88,10 @@ Postgres**, com Row Level Security. Toda a leitura e escrita passa por um único
 | Tabela | Para quê |
 | --- | --- |
 | `moradores` | E-mail e nome de quem mora na casa. Estar aqui é o que libera o acesso. |
-| `contas_fixas` | Modelo das contas que se repetem (nome, dia, tipo). Desativadas em vez de apagadas. |
-| `contas_do_mes` | Cada linha da checklist: vencimento, valor, responsável, anexos (`jsonb`) e data de pagamento. |
+| `contas_fixas` | Modelo das contas que se repetem (nome, dia, tipo, valor e código fixos). Desativadas em vez de apagadas. |
+| `contas_do_mes` | Cada linha da checklist: vencimento, valor, código para pagar, responsável, anexos (`jsonb`) e data de pagamento. |
 
-O esquema completo, com as políticas, está em
-[`supabase/migrations`](supabase/migrations/20261025000000_esquema_inicial.sql).
+O esquema completo, com as políticas, está em [`supabase/migrations`](supabase/migrations).
 
 ## Decisões de projeto
 
@@ -126,8 +127,8 @@ cd ja_pagou
 npm install
 ```
 
-1. No **SQL Editor** do Supabase, rode
-   [`supabase/migrations/20261025000000_esquema_inicial.sql`](supabase/migrations/20261025000000_esquema_inicial.sql).
+1. No **SQL Editor** do Supabase, rode os arquivos de [`supabase/migrations`](supabase/migrations)
+   em ordem.
 2. Rode também [`supabase/seed.example.sql`](supabase/seed.example.sql), trocando os e-mails pelos
    de quem vai usar.
 3. Em **Authentication → Users → Add user**, crie os usuários com senha e marque _Auto Confirm User_.
@@ -165,8 +166,7 @@ automático a cada push na `main`.
 
 ## Próximos passos
 
-- [ ] Código do boleto / Pix copia-e-cola com botão de copiar
-- [ ] Banco separado para desenvolvimento
+- [x] Código do boleto / Pix copia-e-cola com botão de copiar
 - [ ] Testes (Vitest) e CI no GitHub Actions
 - [ ] Atualização em tempo real entre os aparelhos (Supabase Realtime)
 - [ ] Lembrete de contas perto do vencimento

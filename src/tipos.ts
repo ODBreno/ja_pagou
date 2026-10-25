@@ -9,6 +9,10 @@ export interface ContaFixa {
   nome: string
   diaVencimento: number
   tipo: TipoConta
+  /** Valor que entra sozinho todo mês (ex.: condomínio, Pix fixo). */
+  valorPadrao: number | null
+  /** Código que se repete todo mês (ex.: chave Pix da conta do débito automático). */
+  codigoPagamento: string | null
 }
 
 export interface Anexo {
@@ -33,6 +37,8 @@ export interface ContaDoMes {
   /** YYYY-MM-DD */
   vencimento: string
   valor: number | null
+  /** Linha digitável do boleto, Pix copia e cola ou chave Pix, para copiar na hora de pagar. */
+  codigoPagamento: string | null
   responsavel: string | null
   conta: Anexo | null
   comprovante: Anexo | null
