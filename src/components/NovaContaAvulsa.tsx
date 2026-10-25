@@ -67,7 +67,7 @@ export function NovaContaAvulsa({ mes, onAdicionada }: Props) {
         <select
           value={tipo}
           onChange={(e) => setTipo(e.target.value as TipoConta)}
-          className="w-1/2 rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none focus:border-emerald-400"
+          className="w-1/2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400"
         >
           <option value="boleto">Tem conta/boleto</option>
           <option value="debito">Débito automático</option>

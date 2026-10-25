@@ -20,7 +20,7 @@ export async function carregarConfiguracao(): Promise<Configuracao> {
   const salva = await get<Configuracao>('configuracao', banco)
   if (salva) return salva
   const padrao: Configuracao = {
-    moradores: ['Breno', 'Namorada'],
+    moradores: ['Breno', 'Naty'],
     contasFixas: CONTAS_FIXAS_PADRAO.map((c) => ({ ...c, id: novoId() })),
   }
   await set('configuracao', padrao, banco)
