@@ -1,5 +1,5 @@
 import type { PostgrestError } from '@supabase/supabase-js'
-import { mesAtual, hoje, vencimentoNoMes } from '../lib/datas'
+import { MES_INICIAL, mesAtual, hoje, vencimentoNoMes } from '../lib/datas'
 import { novoId } from '../lib/id'
 import type { Anexo, CampoAnexo, Configuracao, ContaDoMes, ContaFixa, Morador, TipoConta } from '../tipos'
 import { supabase } from './supabase'
@@ -164,6 +164,27 @@ export async function carregarMes(mes: string, fixas: ContaFixa[]): Promise<Cont
   }
   if (orfas.length) exigir(await supabase.from('contas_do_mes').delete().in('id', orfas))
   return buscarMes(mes)
+}
+
+/** Tudo o que já existe no ano, sem gerar meses novos (para a visão do ano). */
+export async function carregarAno(ano: number): Promise<ContaDoMes[]> {
+  const linhas = exigir<LinhaContaDoMes[]>(
+    await supabase.from('contas_do_mes').select('*').gte('mes', `${ano}-01`).lte('mes', `${ano}-12`),
+  )
+  return linhas.map(daLinha)
+}
+
+/** Contas com valor preenchido desde o início do app, em ordem de mês (para as métricas). */
+export async function carregarHistoricoDeValores(): Promise<ContaDoMes[]> {
+  const linhas = exigir<LinhaContaDoMes[]>(
+    await supabase
+      .from('contas_do_mes')
+      .select('*')
+      .gte('mes', MES_INICIAL)
+      .not('valor', 'is', null)
+      .order('mes'),
+  )
+  return linhas.map(daLinha)
 }
 
 export async function salvarConta(conta: ContaDoMes): Promise<void> {

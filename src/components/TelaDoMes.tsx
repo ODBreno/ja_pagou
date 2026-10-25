@@ -59,7 +59,7 @@ export function TelaDoMes({ mes, configuracao, onMudarMes, onAbrirConfiguracoes 
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 pb-10">
+    <div className="mx-auto max-w-md px-4 pb-28">
       <CabecalhoMes mes={mes} onMudarMes={onMudarMes} onAbrirConfiguracoes={onAbrirConfiguracoes} />
       {erro && (
         <p className="mb-3 rounded-xl bg-rose-500/15 p-3 text-sm text-rose-300">Erro ao carregar: {erro}</p>
