@@ -1,7 +1,7 @@
 import { ChevronDown, FileText, Repeat, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { anexarArquivo, removerAnexo, removerConta } from '../dados/repositorio'
-import { diaEMes, diasAte } from '../lib/datas'
+import { diaEMes, diasAte, hoje } from '../lib/datas'
 import { formatarReais, lerValor, valorParaTexto } from '../lib/dinheiro'
 import { estaAtrasada, statusDa, type Status } from '../lib/status'
 import type { CampoAnexo, ContaDoMes } from '../tipos'
@@ -124,6 +124,20 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
               />
             </div>
           </label>
+
+          {status === 'pago' && (
+            <label className="block">
+              <span className="text-xs font-semibold tracking-wide text-suave uppercase">Pago em</span>
+              <input
+                type="date"
+                required
+                value={conta.pagoEm ?? ''}
+                max={hoje()}
+                onChange={(e) => e.target.value && onAlterada({ ...conta, pagoEm: e.target.value })}
+                className="mt-1 w-full rounded-lg border border-borda bg-elevado px-3 py-2 outline-none focus:border-destaque"
+              />
+            </label>
+          )}
 
           {status !== 'pago' && (
             <div>
