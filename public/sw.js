@@ -1,6 +1,6 @@
 // Service worker do "Já pagamos?": deixa o app abrir rápido e mostrar a casca sem internet.
 // Só guarda arquivos do próprio site; chamadas ao Supabase (dados, login, anexos) nunca passam pelo cache.
-const CACHE = 'ja-pagamos-v3'
+const CACHE = 'ja-pagamos-v4'
 // Onde fica o arquivo recebido pelo "Compartilhar" até o app pegar (src/lib/compartilhado.ts).
 const CACHE_COMPARTILHADO = 'ja-pagamos-compartilhado'
 
@@ -14,6 +14,28 @@ self.addEventListener('push', (evento) => {
       icon: '/icones/icone-192.png',
       badge: '/icones/icone-192.png',
     }),
+  )
+})
+
+// O navegador às vezes troca a inscrição sozinho (expira, rotação de chaves do serviço de push).
+// Sem isto, o aparelho para de receber até alguém abrir o app; aqui já avisa o servidor na hora.
+self.addEventListener('pushsubscriptionchange', (evento) => {
+  evento.waitUntil(
+    (async () => {
+      const antiga = evento.oldSubscription
+      if (!antiga) return
+      const nova =
+        evento.newSubscription ||
+        (await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: antiga.options.applicationServerKey,
+        }))
+      await fetch('/api/notificacoes', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ acao: 'trocar', antigo: antiga.endpoint, inscricao: nova.toJSON() }),
+      })
+    })().catch(() => {}),
   )
 })
 

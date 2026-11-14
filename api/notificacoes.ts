@@ -1,6 +1,7 @@
 // Função da Vercel que manda as notificações push.
 //   GET  (Vercel Cron, 1x por dia): lembretes de vencimento e o aviso de começo de mês.
-//   POST (app, com o login do morador): { acao: 'teste' } ou { acao: 'tudo-pago', mes }.
+//   POST (app, com o login do morador): { acao: 'inscrever' | 'desinscrever' | 'teste' | 'tudo-pago' }.
+//   POST (service worker, sem login):   { acao: 'trocar' } quando o navegador renova a inscrição.
 // Usa a chave secreta do Supabase (ignora o RLS), então toda entrada é validada aqui.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import * as webpushModulo from 'web-push'
@@ -164,28 +165,83 @@ function configurarVapid(origem: string) {
   }
 }
 
+interface ResultadoEnvio {
+  /** Aparelhos que aceitaram a notificação. */
+  enviados: number
+  /** Aparelhos cadastrados para quem tentou mandar. */
+  total: number
+  /** Motivo de cada falha (para mostrar no teste e no log). */
+  falhas: string[]
+}
+
 /** Manda para os aparelhos inscritos (todos, ou só os de um e-mail) e limpa inscrições expiradas. */
-async function enviar(banco: SupabaseClient, aviso: Aviso, email?: string): Promise<number> {
-  let consulta = banco.from('inscricoes_push').select('endpoint, p256dh, auth')
+async function enviar(banco: SupabaseClient, aviso: Aviso, email?: string): Promise<ResultadoEnvio> {
+  let consulta = banco.from('inscricoes_push').select('endpoint, p256dh, auth, email')
   if (email) consulta = consulta.eq('email', email)
   const { data: inscricoes, error } = await consulta
   if (error) throw new Error(`Erro ao ler inscricoes_push: ${error.message}`)
 
   const payload = JSON.stringify({ titulo: aviso.titulo, corpo: aviso.corpo, tag: aviso.tag })
-  let enviados = 0
+  const resultado: ResultadoEnvio = { enviados: 0, total: inscricoes?.length ?? 0, falhas: [] }
   for (const i of inscricoes ?? []) {
     try {
       await webpush.sendNotification({ endpoint: i.endpoint, keys: { p256dh: i.p256dh, auth: i.auth } }, payload, {
         TTL: 60 * 60 * 24,
+        // "high": o Android entrega na hora mesmo com o celular parado (modo soneca); "normal" pode atrasar horas.
+        urgency: 'high',
       })
-      enviados++
+      resultado.enviados++
     } catch (erro) {
       const status = (erro as { statusCode?: number }).statusCode
-      if (status === 404 || status === 410) await banco.from('inscricoes_push').delete().eq('endpoint', i.endpoint)
-      else console.error('Falha ao enviar push', status, (erro as { body?: string }).body ?? (erro as Error).message)
+      const detalhe = (erro as { body?: string }).body || (erro as Error).message
+      const servico = new URL(i.endpoint).hostname
+      if (status === 404 || status === 410) {
+        // O navegador cancelou essa inscrição; o app cadastra a nova quando for aberto.
+        await banco.from('inscricoes_push').delete().eq('endpoint', i.endpoint)
+        resultado.falhas.push(`inscrição expirada em ${servico} (removida)`)
+      } else {
+        resultado.falhas.push(`${servico} respondeu ${status ?? 'erro'}: ${String(detalhe).slice(0, 160)}`)
+      }
+      console.error('Falha ao enviar push', i.email, servico, status, detalhe)
     }
   }
-  return enviados
+  return resultado
+}
+
+interface Inscricao {
+  endpoint: string
+  p256dh: string
+  auth: string
+}
+
+/** Valida a inscrição que vem do navegador (PushSubscription.toJSON()). */
+function lerInscricao(dado: unknown): Inscricao | null {
+  const i = dado as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } } | null
+  const endpoint = i?.endpoint
+  const p256dh = i?.keys?.p256dh
+  const auth = i?.keys?.auth
+  if (typeof endpoint !== 'string' || !/^https:\/\//.test(endpoint) || endpoint.length > 2000) return null
+  if (typeof p256dh !== 'string' || typeof auth !== 'string' || !p256dh || !auth) return null
+  return { endpoint, p256dh, auth }
+}
+
+/**
+ * Grava (ou passa para este e-mail) a inscrição do aparelho. Fica no servidor, e não no front com RLS,
+ * porque um endpoint já gravado com outro e-mail (ex.: celular onde o outro morador já entrou)
+ * fazia o upsert do front falhar no RLS e o aparelho nunca entrava na lista.
+ */
+async function salvarInscricao(banco: SupabaseClient, inscricao: Inscricao, email: string) {
+  const { error } = await banco.from('inscricoes_push').upsert({ ...inscricao, email }, { onConflict: 'endpoint' })
+  if (error) throw new Error(`Erro ao salvar a inscrição: ${error.message}`)
+}
+
+async function contarAparelhos(banco: SupabaseClient, email: string): Promise<number> {
+  const { count, error } = await banco
+    .from('inscricoes_push')
+    .select('endpoint', { count: 'exact', head: true })
+    .eq('email', email)
+  if (error) throw new Error(error.message)
+  return count ?? 0
 }
 
 async function registrarEnviados(banco: SupabaseClient, chaves: string[]) {
@@ -236,25 +292,70 @@ export const GET = comTratamento(async (request) => {
   )
   const resultado = []
   for (const aviso of avisos) {
-    const quantos = await enviar(banco, aviso)
-    if (quantos > 0) await registrarEnviados(banco, aviso.chaves)
-    resultado.push({ titulo: aviso.titulo, aparelhos: quantos })
+    const envio = await enviar(banco, aviso)
+    if (envio.enviados > 0) await registrarEnviados(banco, aviso.chaves)
+    resultado.push({ titulo: aviso.titulo, aparelhos: envio.enviados, de: envio.total, falhas: envio.falhas })
   }
   return json({ hoje, avisos: resultado })
 })
 
-/** Chamado pelo app com o token do morador logado. */
-export const POST = comTratamento(async (request) => {
+interface CorpoPost {
+  acao?: string
+  mes?: string
+  inscricao?: unknown
+  endpoint?: unknown
+  antigo?: unknown
+}
+
+/** E-mail do morador dono do token, ou a resposta de erro. */
+async function moradorLogado(banco: SupabaseClient, request: Request): Promise<string | Response> {
   const token = request.headers.get('authorization')?.replace(/^Bearer /, '')
-  const banco = clienteAdmin()
+  if (!token) return json({ erro: 'não autorizado' }, 401)
   const { data: usuario } = await banco.auth.getUser(token)
   const email = usuario.user?.email?.toLowerCase()
   if (!email) return json({ erro: 'não autorizado' }, 401)
   const { data: morador } = await banco.from('moradores').select('email').eq('email', email).maybeSingle()
   if (!morador) return json({ erro: 'não autorizado' }, 403)
+  return email
+}
+
+export const POST = comTratamento(async (request) => {
+  const banco = clienteAdmin()
+  const corpo = (await request.json().catch(() => ({}))) as CorpoPost
+
+  // Service worker (evento pushsubscriptionchange): não tem o login, mas só consegue trocar
+  // uma inscrição que já existe, e o endpoint antigo funciona como prova (é secreto).
+  if (corpo.acao === 'trocar') {
+    const nova = lerInscricao(corpo.inscricao)
+    if (!nova || typeof corpo.antigo !== 'string') return json({ erro: 'dados inválidos' }, 400)
+    const { data: antiga } = await banco
+      .from('inscricoes_push')
+      .select('email')
+      .eq('endpoint', corpo.antigo)
+      .maybeSingle()
+    if (!antiga) return json({ erro: 'inscrição antiga não encontrada' }, 404)
+    await salvarInscricao(banco, nova, antiga.email as string)
+    if (corpo.antigo !== nova.endpoint) await banco.from('inscricoes_push').delete().eq('endpoint', corpo.antigo)
+    return json({ ok: true })
+  }
+
+  const email = await moradorLogado(banco, request)
+  if (email instanceof Response) return email
+
+  if (corpo.acao === 'inscrever') {
+    const inscricao = lerInscricao(corpo.inscricao)
+    if (!inscricao) return json({ erro: 'inscrição inválida' }, 400)
+    await salvarInscricao(banco, inscricao, email)
+    return json({ aparelhos: await contarAparelhos(banco, email) })
+  }
+
+  if (corpo.acao === 'desinscrever') {
+    if (typeof corpo.endpoint !== 'string') return json({ erro: 'endpoint inválido' }, 400)
+    await banco.from('inscricoes_push').delete().eq('endpoint', corpo.endpoint).eq('email', email)
+    return json({ ok: true })
+  }
 
   configurarVapid(new URL(request.url).origin)
-  const corpo = (await request.json().catch(() => ({}))) as { acao?: string; mes?: string }
 
   if (corpo.acao === 'teste') {
     const aviso = {
@@ -263,11 +364,14 @@ export const POST = comTratamento(async (request) => {
       corpo: 'É assim que os lembretes das contas vão aparecer.',
       tag: 'teste',
     }
-    const quantos = await enviar(banco, aviso, email)
-    if (quantos === 0) {
-      return json({ erro: 'Nenhum aparelho recebeu. Desative e ative as notificações de novo neste aparelho.' }, 500)
+    const envio = await enviar(banco, aviso, email)
+    if (envio.total === 0) {
+      return json({ erro: 'Nenhum aparelho seu está cadastrado. Desative e ative as notificações neste aparelho.' }, 500)
     }
-    return json({ aparelhos: quantos })
+    if (envio.enviados === 0) {
+      return json({ erro: `Nenhum dos seus ${envio.total} aparelho(s) recebeu. ${envio.falhas.join(' | ')}` }, 500)
+    }
+    return json({ aparelhos: envio.enviados, total: envio.total, falhas: envio.falhas })
   }
 
   if (corpo.acao === 'tudo-pago' && /^\d{4}-\d{2}$/.test(corpo.mes ?? '')) {
@@ -280,9 +384,9 @@ export const POST = comTratamento(async (request) => {
     const lista = contas.data ?? []
     if (jaEnviado.data || !lista.length || lista.some((c) => !c.comprovante)) return json({ aparelhos: 0 })
     const aviso = montarAvisoTudoPago(mes, lista.length)
-    const quantos = await enviar(banco, aviso)
-    if (quantos > 0) await registrarEnviados(banco, aviso.chaves)
-    return json({ aparelhos: quantos })
+    const envio = await enviar(banco, aviso)
+    if (envio.enviados > 0) await registrarEnviados(banco, aviso.chaves)
+    return json({ aparelhos: envio.enviados })
   }
 
   return json({ erro: 'ação inválida' }, 400)

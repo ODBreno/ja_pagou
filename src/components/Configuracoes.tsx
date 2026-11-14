@@ -1,5 +1,6 @@
-import { ArrowLeft, LogOut, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, LogOut, Plus, Save, Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
+import { mostrarAviso } from '../lib/aviso'
 import { novoId } from '../lib/id'
 import type { Configuracao, ContaFixa, Morador, TipoConta } from '../tipos'
 import { CampoValor } from './CampoValor'
@@ -23,6 +24,16 @@ export function Configuracoes({ configuracao, emailLogado, onSalvar, onVoltar, o
   const [moradores, setMoradores] = useState<MoradorEditavel[]>(configuracao.moradores)
   const [contasFixas, setContasFixas] = useState(configuracao.contasFixas)
   const [salvando, setSalvando] = useState(false)
+
+  const retrato = (m: Morador[], c: ContaFixa[]) =>
+    JSON.stringify({ m: m.map(({ email, nome }) => ({ email, nome })), c })
+  const alterado =
+    retrato(moradores, contasFixas) !== retrato(configuracao.moradores, configuracao.contasFixas)
+
+  function voltar() {
+    if (alterado && !confirm('Sair sem salvar as alterações?')) return
+    onVoltar()
+  }
 
   function alterarMorador(i: number, mudanca: Partial<Morador>) {
     setMoradores(moradores.map((m, j) => (j === i ? { ...m, ...mudanca } : m)))
@@ -65,8 +76,9 @@ export function Configuracoes({ configuracao, emailLogado, onSalvar, onVoltar, o
           .filter((c) => c.nome)
           .sort((a, b) => a.diaVencimento - b.diaVencimento),
       })
+      mostrarAviso('Configurações salvas ✓')
     } catch (erro) {
-      alert(`Não foi possível salvar: ${(erro as Error).message}`)
+      mostrarAviso(`Não foi possível salvar: ${(erro as Error).message}`, 'erro')
     } finally {
       setSalvando(false)
     }
@@ -77,7 +89,7 @@ export function Configuracoes({ configuracao, emailLogado, onSalvar, onVoltar, o
       <header className="flex items-center gap-2">
         <button
           type="button"
-          onClick={onVoltar}
+          onClick={voltar}
           className="rounded-full p-2 text-suave hover:bg-elevado"
           aria-label="Voltar"
         >
@@ -86,180 +98,188 @@ export function Configuracoes({ configuracao, emailLogado, onSalvar, onVoltar, o
         <h1 className="text-2xl font-bold">Configurações</h1>
       </header>
 
-      <section className="space-y-3 rounded-2xl bg-superficie p-4 ring-1 ring-borda">
-        <div>
-          <h2 className="font-semibold">Quem mora aqui</h2>
-          <p className="text-sm text-suave">Quem está aqui consegue entrar no app com o próprio e-mail.</p>
-        </div>
-        {moradores.map((morador, i) => (
-          <div key={i} className="flex items-start gap-2">
-            <div className="min-w-0 flex-1 space-y-2">
-              <input
-                value={morador.nome}
-                placeholder="Nome"
-                onChange={(e) => alterarMorador(i, { nome: e.target.value })}
-                className={`${campo} w-full`}
-              />
-              {morador.novo ? (
+      {/* O botão Salvar gruda no rodapé enquanto estas duas seções estão na tela. */}
+      <div className="space-y-6">
+        <section className="space-y-3 rounded-2xl bg-superficie p-4 ring-1 ring-borda">
+          <div>
+            <h2 className="font-semibold">Quem mora aqui</h2>
+            <p className="text-sm text-suave">Quem está aqui consegue entrar no app com o próprio e-mail.</p>
+          </div>
+          {moradores.map((morador, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <div className="min-w-0 flex-1 space-y-2">
                 <input
-                  type="email"
-                  value={morador.email}
-                  placeholder="E-mail de login"
-                  onChange={(e) => alterarMorador(i, { email: e.target.value })}
-                  className={`${campo} w-full text-sm`}
+                  value={morador.nome}
+                  placeholder="Nome"
+                  onChange={(e) => alterarMorador(i, { nome: e.target.value })}
+                  className={`${campo} w-full`}
                 />
-              ) : (
-                <p className="truncate px-1 text-xs text-apagado">{morador.email}</p>
+                {morador.novo ? (
+                  <input
+                    type="email"
+                    value={morador.email}
+                    placeholder="E-mail de login"
+                    onChange={(e) => alterarMorador(i, { email: e.target.value })}
+                    className={`${campo} w-full text-sm`}
+                  />
+                ) : (
+                  <p className="truncate px-1 text-xs text-apagado">{morador.email}</p>
+                )}
+              </div>
+              {morador.email !== emailLogado && (
+                <button
+                  type="button"
+                  onClick={() => setMoradores(moradores.filter((_, j) => j !== i))}
+                  className="rounded-full p-2 text-apagado hover:text-rose-400"
+                  aria-label={`Remover ${morador.nome}`}
+                >
+                  <Trash2 size={18} />
+                </button>
               )}
             </div>
-            {morador.email !== emailLogado && (
-              <button
-                type="button"
-                onClick={() => setMoradores(moradores.filter((_, j) => j !== i))}
-                className="rounded-full p-2 text-apagado hover:text-rose-400"
-                aria-label={`Remover ${morador.nome}`}
-              >
-                <Trash2 size={18} />
-              </button>
-            )}
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={() => setMoradores([...moradores, { email: '', nome: '', novo: true }])}
-          className="flex items-center gap-1.5 text-sm font-medium text-destaque-claro"
-        >
-          <Plus size={16} /> Adicionar pessoa
-        </button>
-      </section>
+          ))}
+          <button
+            type="button"
+            onClick={() => setMoradores([...moradores, { email: '', nome: '', novo: true }])}
+            className="flex items-center gap-1.5 text-sm font-medium text-destaque-claro"
+          >
+            <Plus size={16} /> Adicionar pessoa
+          </button>
+        </section>
 
-      <section className="space-y-3 rounded-2xl bg-superficie p-4 ring-1 ring-borda">
-        <div>
-          <h2 className="font-semibold">Contas fixas</h2>
-          <p className="text-sm text-suave">
-            Entram sozinhas na checklist de todo mês. Mudanças valem para o mês atual e os próximos.
-          </p>
-        </div>
-        {contasFixas.map((conta) => (
-          <div key={conta.id} className="space-y-2 rounded-xl border border-borda p-3">
-            <div className="flex gap-2">
-              <input
-                value={conta.nome}
-                placeholder="Nome da conta"
-                onChange={(e) => alterarFixa(conta.id, { nome: e.target.value })}
-                className={`${campo} min-w-0 flex-1`}
-              />
-              <button
-                type="button"
-                onClick={() => setContasFixas(contasFixas.filter((c) => c.id !== conta.id))}
-                className="rounded-full p-2 text-apagado hover:text-rose-400"
-                aria-label={`Remover ${conta.nome}`}
-              >
-                <Trash2 size={18} />
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <label className="flex w-24 items-center gap-2 text-sm text-suave">
-                Dia
+        <section className="space-y-3 rounded-2xl bg-superficie p-4 ring-1 ring-borda">
+          <div>
+            <h2 className="font-semibold">Contas fixas</h2>
+            <p className="text-sm text-suave">
+              Entram sozinhas na checklist de todo mês. Mudanças valem para o mês atual e os próximos.
+            </p>
+          </div>
+          {contasFixas.map((conta) => (
+            <div key={conta.id} className="space-y-2 rounded-xl border border-borda p-3">
+              <div className="flex gap-2">
                 <input
-                  type="number"
-                  min={1}
-                  max={31}
-                  inputMode="numeric"
-                  value={conta.diaVencimento || ''}
-                  onChange={(e) => alterarFixa(conta.id, { diaVencimento: Number(e.target.value) })}
-                  className={`${campo} w-full text-texto`}
+                  value={conta.nome}
+                  placeholder="Nome da conta"
+                  onChange={(e) => alterarFixa(conta.id, { nome: e.target.value })}
+                  className={`${campo} min-w-0 flex-1`}
                 />
-              </label>
-              <select
-                value={conta.tipo}
-                onChange={(e) => alterarFixa(conta.id, { tipo: e.target.value as TipoConta })}
-                className={`${campo} min-w-0 flex-1 text-sm`}
-              >
-                <option value="boleto">Tem conta/boleto</option>
-                <option value="debito">Débito automático</option>
-              </select>
-            </div>
-            <label className="flex items-center gap-2 text-sm text-suave">
-              Quem paga
-              <select
-                value={conta.responsavel ?? ''}
-                onChange={(e) => alterarFixa(conta.id, { responsavel: e.target.value || null })}
-                className={`${campo} min-w-0 flex-1 py-1.5 text-sm`}
-              >
-                <option value="">Tanto faz</option>
-                {moradores
-                  .filter((m) => m.nome.trim())
-                  .map((m) => (
-                    <option key={m.email || m.nome} value={m.nome.trim()}>
-                      {m.nome.trim()}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <label className="flex w-fit items-center gap-2 text-sm text-suave">
-              <input
-                type="checkbox"
-                checked={comValorFixo.has(conta.id)}
-                onChange={(e) => alternarValorFixo(conta.id, e.target.checked)}
-                className="size-4 accent-destaque"
-              />
-              Valor fixo
-            </label>
-            {comValorFixo.has(conta.id) && (
-              <>
-                <div>
-                  <p className="mb-1 text-xs text-suave">Valor todo mês</p>
-                  <CampoValor
-                    valor={conta.valorPadrao}
-                    onMudar={(valorPadrao) => alterarFixa(conta.id, { valorPadrao })}
-                  />
-                </div>
-                <div>
-                  <p className="mb-1 text-xs text-suave">
-                    {conta.tipo === 'debito' ? 'Chave Pix (opcional)' : 'Código para pagar (opcional)'}
-                  </p>
+                <button
+                  type="button"
+                  onClick={() => setContasFixas(contasFixas.filter((c) => c.id !== conta.id))}
+                  className="rounded-full p-2 text-apagado hover:text-rose-400"
+                  aria-label={`Remover ${conta.nome}`}
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <label className="flex w-24 items-center gap-2 text-sm text-suave">
+                  Dia
                   <input
-                    value={conta.codigoPagamento ?? ''}
-                    onChange={(e) => alterarFixa(conta.id, { codigoPagamento: e.target.value })}
-                    className={`${campo} w-full font-mono text-sm`}
+                    type="number"
+                    min={1}
+                    max={31}
+                    inputMode="numeric"
+                    value={conta.diaVencimento || ''}
+                    onChange={(e) => alterarFixa(conta.id, { diaVencimento: Number(e.target.value) })}
+                    className={`${campo} w-full text-texto`}
                   />
-                </div>
-              </>
-            )}
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={() =>
-            setContasFixas([
-              ...contasFixas,
-              {
-                id: novoId(),
-                nome: '',
-                diaVencimento: 10,
-                tipo: 'boleto',
-                valorPadrao: null,
-                codigoPagamento: null,
-                responsavel: null,
-              },
-            ])
-          }
-          className="flex items-center gap-1.5 text-sm font-medium text-destaque-claro"
-        >
-          <Plus size={16} /> Adicionar conta fixa
-        </button>
-      </section>
+                </label>
+                <select
+                  value={conta.tipo}
+                  onChange={(e) => alterarFixa(conta.id, { tipo: e.target.value as TipoConta })}
+                  className={`${campo} min-w-0 flex-1 text-sm`}
+                >
+                  <option value="boleto">Tem conta/boleto</option>
+                  <option value="debito">Débito automático</option>
+                </select>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-suave">
+                Quem paga
+                <select
+                  value={conta.responsavel ?? ''}
+                  onChange={(e) => alterarFixa(conta.id, { responsavel: e.target.value || null })}
+                  className={`${campo} min-w-0 flex-1 py-1.5 text-sm`}
+                >
+                  <option value="">Tanto faz</option>
+                  {moradores
+                    .filter((m) => m.nome.trim())
+                    .map((m) => (
+                      <option key={m.email || m.nome} value={m.nome.trim()}>
+                        {m.nome.trim()}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label className="flex w-fit items-center gap-2 text-sm text-suave">
+                <input
+                  type="checkbox"
+                  checked={comValorFixo.has(conta.id)}
+                  onChange={(e) => alternarValorFixo(conta.id, e.target.checked)}
+                  className="size-4 accent-destaque"
+                />
+                Valor fixo
+              </label>
+              {comValorFixo.has(conta.id) && (
+                <>
+                  <div>
+                    <p className="mb-1 text-xs text-suave">Valor todo mês</p>
+                    <CampoValor
+                      valor={conta.valorPadrao}
+                      onMudar={(valorPadrao) => alterarFixa(conta.id, { valorPadrao })}
+                    />
+                  </div>
+                  <div>
+                    <p className="mb-1 text-xs text-suave">
+                      {conta.tipo === 'debito' ? 'Chave Pix (opcional)' : 'Código para pagar (opcional)'}
+                    </p>
+                    <input
+                      value={conta.codigoPagamento ?? ''}
+                      onChange={(e) => alterarFixa(conta.id, { codigoPagamento: e.target.value })}
+                      className={`${campo} w-full font-mono text-sm`}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() =>
+              setContasFixas([
+                ...contasFixas,
+                {
+                  id: novoId(),
+                  nome: '',
+                  diaVencimento: 10,
+                  tipo: 'boleto',
+                  valorPadrao: null,
+                  codigoPagamento: null,
+                  responsavel: null,
+                },
+              ])
+            }
+            className="flex items-center gap-1.5 text-sm font-medium text-destaque-claro"
+          >
+            <Plus size={16} /> Adicionar conta fixa
+          </button>
+        </section>
 
-      <button
-        type="submit"
-        disabled={salvando}
-        className="w-full rounded-xl bg-destaque py-3 font-semibold text-white disabled:opacity-50"
-      >
-        {salvando ? 'Salvando…' : 'Salvar'}
-      </button>
+        <div className="sticky bottom-0 z-10 -mx-4 bg-fundo/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur">
+          {alterado && <p className="mb-2 text-center text-xs font-medium text-amber-300">Há alterações não salvas</p>}
+          <button
+            type="submit"
+            disabled={salvando}
+            className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 font-semibold disabled:opacity-60 ${
+              alterado ? 'bg-destaque text-white' : 'bg-elevado text-suave'
+            }`}
+          >
+            <Save size={18} /> {salvando ? 'Salvando…' : 'Salvar configurações'}
+          </button>
+        </div>
+      </div>
 
-      <SecaoNotificacoes email={emailLogado} />
+      <SecaoNotificacoes />
 
       <DefinirSenha />
 

@@ -1,6 +1,7 @@
-import { Plus } from 'lucide-react'
+import { Plus, Save } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { adicionarContaAvulsa } from '../dados/repositorio'
+import { mostrarAviso } from '../lib/aviso'
 import { vencimentoNoMes } from '../lib/datas'
 import type { ContaDoMes, TipoConta } from '../tipos'
 
@@ -14,9 +15,11 @@ export function NovaContaAvulsa({ mes, onAdicionada }: Props) {
   const [nome, setNome] = useState('')
   const [dia, setDia] = useState('')
   const [tipo, setTipo] = useState<TipoConta>('boleto')
+  const [salvando, setSalvando] = useState(false)
 
   async function salvar(e: FormEvent) {
     e.preventDefault()
+    setSalvando(true)
     try {
       onAdicionada(
         await adicionarContaAvulsa({
@@ -26,9 +29,12 @@ export function NovaContaAvulsa({ mes, onAdicionada }: Props) {
           vencimento: vencimentoNoMes(mes, Number(dia)),
         }),
       )
+      mostrarAviso(`${nome.trim()} adicionada ✓`)
     } catch (erro) {
-      alert(`Não foi possível adicionar: ${(erro as Error).message}`)
+      mostrarAviso(`Não foi possível adicionar: ${(erro as Error).message}`, 'erro')
       return
+    } finally {
+      setSalvando(false)
     }
     setNome('')
     setDia('')
@@ -79,12 +85,16 @@ export function NovaContaAvulsa({ mes, onAdicionada }: Props) {
           <option value="debito">Débito automático</option>
         </select>
       </div>
-      <div className="flex justify-end gap-2">
-        <button type="button" onClick={() => setAberto(false)} className="px-3 py-2 text-sm text-suave">
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setAberto(false)} className="px-4 py-3 text-sm text-suave">
           Cancelar
         </button>
-        <button type="submit" className="rounded-lg bg-destaque px-4 py-2 text-sm font-medium text-white">
-          Adicionar
+        <button
+          type="submit"
+          disabled={salvando}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-destaque py-3 font-semibold text-white disabled:opacity-60"
+        >
+          <Save size={18} /> {salvando ? 'Salvando…' : 'Salvar conta'}
         </button>
       </div>
     </form>

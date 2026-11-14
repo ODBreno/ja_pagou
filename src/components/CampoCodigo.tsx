@@ -10,8 +10,9 @@ interface Props {
 export function CampoCodigo({ codigo, onMudar }: Props) {
   const [texto, setTexto] = useState(codigo ?? '')
 
-  function confirmar() {
-    const limpo = texto.trim() || null
+  function digitar(novo: string) {
+    setTexto(novo)
+    const limpo = novo.trim() || null
     if (limpo !== codigo) onMudar(limpo)
   }
 
@@ -21,8 +22,7 @@ export function CampoCodigo({ codigo, onMudar }: Props) {
         rows={texto.length > 60 ? 3 : 1}
         value={texto}
         spellCheck={false}
-        onChange={(e) => setTexto(e.target.value)}
-        onBlur={confirmar}
+        onChange={(e) => digitar(e.target.value)}
         className="w-full resize-none rounded-lg border border-borda bg-elevado px-3 py-2 font-mono text-sm break-all outline-none focus:border-destaque"
       />
       {codigo && <BotaoCopiar texto={codigo} rotulo="Copiar código" />}

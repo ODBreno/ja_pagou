@@ -4,6 +4,7 @@ import { carregarMes, salvarConta } from '../dados/repositorio'
 import { supabase } from '../dados/supabase'
 import { statusDa } from '../lib/status'
 import type { Configuracao, ContaDoMes } from '../tipos'
+import { AvisoNotificacoes } from './AvisoNotificacoes'
 import { CabecalhoMes } from './CabecalhoMes'
 import { CartaoConta } from './CartaoConta'
 import { NovaContaAvulsa } from './NovaContaAvulsa'
@@ -68,22 +69,34 @@ export function TelaDoMes({ mes, configuracao, onMudarMes, onAbrirConfiguracoes 
     }
   }, [mes, configuracao])
 
-  function alterar(conta: ContaDoMes) {
-    const novas = contas?.map((c) => (c.id === conta.id ? conta : c)) ?? []
+  /**
+   * Atualiza a conta na tela e grava no banco (a não ser que o repositório já tenha gravado, como
+   * nos anexos). Se a gravação falhar, volta a conta como estava e repassa o erro para quem chamou
+   * mostrar o aviso.
+   */
+  async function alterar(conta: ContaDoMes, jaSalva = false): Promise<void> {
+    const anteriores = contas ?? []
+    const antiga = anteriores.find((c) => c.id === conta.id)
+    const novas = anteriores.map((c) => (c.id === conta.id ? conta : c))
     const todasPagas = (lista: ContaDoMes[]) => lista.length > 0 && lista.every((c) => statusDa(c) === 'pago')
-    const acabouDePagarTudo = todasPagas(novas) && !todasPagas(contas ?? [])
-    setContas(novas)
-    salvarConta(conta)
-      // Depois de salvo, para o servidor ver o mês já todo pago; falha aqui não atrapalha o uso.
-      .then(() => {
-        if (acabouDePagarTudo) avisarMesTodoPago(mes).catch(() => {})
-      })
-      .catch((e: Error) => alert(`Não foi possível salvar: ${e.message}`))
+    const acabouDePagarTudo = todasPagas(novas) && !todasPagas(anteriores)
+    setContas((atuais) => atuais?.map((c) => (c.id === conta.id ? conta : c)) ?? null)
+    if (!jaSalva) {
+      try {
+        await salvarConta(conta)
+      } catch (erro) {
+        if (antiga) setContas((atuais) => atuais?.map((c) => (c.id === conta.id ? antiga : c)) ?? null)
+        throw erro
+      }
+    }
+    // Depois de salvo, para o servidor ver o mês já todo pago; falha aqui não atrapalha o uso.
+    if (acabouDePagarTudo) avisarMesTodoPago(mes).catch(() => {})
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 pb-28">
+    <div className="mx-auto max-w-md px-4 pb-44">
       <CabecalhoMes mes={mes} onMudarMes={onMudarMes} onAbrirConfiguracoes={onAbrirConfiguracoes} />
+      <AvisoNotificacoes />
       {erro && (
         <p className="mb-3 rounded-xl bg-rose-500/15 p-3 text-sm text-rose-300">Erro ao carregar: {erro}</p>
       )}
@@ -103,7 +116,14 @@ export function TelaDoMes({ mes, configuracao, onMudarMes, onAbrirConfiguracoes 
               onRemovida={() => setContas(contas.filter((c) => c.id !== conta.id))}
             />
           ))}
-          <NovaContaAvulsa mes={mes} onAdicionada={(conta) => setContas([...contas, conta])} />
+          <NovaContaAvulsa
+            mes={mes}
+            onAdicionada={(conta) => {
+              setContas([...contas, conta])
+              // Já abre a conta nova para preencher valor, código e quem paga.
+              setAberta(conta.id)
+            }}
+          />
         </div>
       )}
     </div>

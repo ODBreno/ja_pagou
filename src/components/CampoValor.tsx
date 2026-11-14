@@ -8,9 +8,15 @@ interface Props {
   acessorio?: ReactNode
 }
 
-/** Campo em reais que aceita "1.234,56" e só avisa a mudança ao sair do campo. */
+/** Campo em reais que aceita "1.234,56". Avisa a mudança enquanto digita e formata ao sair do campo. */
 export function CampoValor({ valor, onMudar, acessorio }: Props) {
   const [texto, setTexto] = useState(valorParaTexto(valor))
+
+  function digitar(novo: string) {
+    setTexto(novo)
+    const lido = lerValor(novo)
+    if (lido !== valor) onMudar(lido)
+  }
 
   function confirmar() {
     const lido = lerValor(texto)
@@ -25,7 +31,7 @@ export function CampoValor({ valor, onMudar, acessorio }: Props) {
         inputMode="decimal"
         placeholder="0,00"
         value={texto}
-        onChange={(e) => setTexto(e.target.value)}
+        onChange={(e) => digitar(e.target.value)}
         onBlur={confirmar}
         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), e.currentTarget.blur())}
         className="w-full min-w-0 bg-transparent px-2 py-2 outline-none"

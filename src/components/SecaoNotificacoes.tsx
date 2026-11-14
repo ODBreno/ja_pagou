@@ -18,7 +18,7 @@ const AVISOS = [
 ]
 
 /** Fica fora do formulário de configurações: ativar vale na hora, só para este aparelho. */
-export function SecaoNotificacoes({ email }: { email: string }) {
+export function SecaoNotificacoes() {
   const [estado, setEstado] = useState<EstadoNotificacoes | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [mensagem, setMensagem] = useState<string | null>(null)
@@ -27,19 +27,33 @@ export function SecaoNotificacoes({ email }: { email: string }) {
     estadoNotificacoes().then(setEstado)
   }, [])
 
-  async function executar(acao: () => Promise<EstadoNotificacoes | void>, sucesso?: string) {
+  async function executar(acao: () => Promise<void>) {
     setOcupado(true)
     setMensagem(null)
     try {
-      const novo = await acao()
-      if (novo) setEstado(novo)
-      if (sucesso) setMensagem(sucesso)
+      await acao()
     } catch (erro) {
       setMensagem(`Não deu certo: ${(erro as Error).message}`)
     } finally {
       setOcupado(false)
     }
   }
+
+  const ativar = () =>
+    executar(async () => {
+      const novo = await ativarNotificacoes()
+      setEstado(novo)
+      if (novo === 'ativadas') setMensagem('Notificações ativadas neste aparelho ✓')
+      if (novo === 'desativadas') setMensagem('A permissão não foi dada. Toque de novo e escolha "Permitir".')
+    })
+
+  const testar = () => executar(async () => setMensagem(await enviarNotificacaoDeTeste()))
+
+  const desativar = () =>
+    executar(async () => {
+      setEstado(await desativarNotificacoes())
+      setMensagem('Notificações desativadas neste aparelho.')
+    })
 
   return (
     <section className="space-y-3 rounded-2xl bg-superficie p-4 ring-1 ring-borda">
@@ -71,7 +85,7 @@ export function SecaoNotificacoes({ email }: { email: string }) {
         <button
           type="button"
           disabled={ocupado}
-          onClick={() => executar(() => ativarNotificacoes(email), 'Notificações ativadas neste aparelho.')}
+          onClick={ativar}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-destaque py-2.5 text-sm font-medium text-white disabled:opacity-50"
         >
           <Bell size={16} /> Ativar neste aparelho
@@ -82,7 +96,7 @@ export function SecaoNotificacoes({ email }: { email: string }) {
           <button
             type="button"
             disabled={ocupado}
-            onClick={() => executar(enviarNotificacaoDeTeste, 'Teste enviado. Deve chegar em alguns segundos.')}
+            onClick={testar}
             className="flex-1 rounded-lg bg-destaque px-3 py-2.5 text-sm font-medium text-white disabled:opacity-50"
           >
             Mandar um teste
@@ -90,7 +104,7 @@ export function SecaoNotificacoes({ email }: { email: string }) {
           <button
             type="button"
             disabled={ocupado}
-            onClick={() => executar(desativarNotificacoes, 'Notificações desativadas neste aparelho.')}
+            onClick={desativar}
             className="flex items-center gap-1.5 rounded-lg bg-elevado px-3 py-2.5 text-sm text-suave disabled:opacity-50"
           >
             <BellOff size={16} /> Desativar

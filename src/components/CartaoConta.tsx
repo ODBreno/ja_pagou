@@ -1,6 +1,7 @@
-import { ChevronDown, FileText, Repeat, ScanText, Trash2 } from 'lucide-react'
+import { ChevronDown, FileText, Repeat, Save, ScanText, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { anexarArquivo, baixarAnexo, removerAnexo, removerConta } from '../dados/repositorio'
+import { mostrarAviso } from '../lib/aviso'
 import { lerCodigoDoPdf } from '../lib/lerPdf'
 import { diaEMes, diasAte, hoje } from '../lib/datas'
 import { formatarReais, valorParaTexto } from '../lib/dinheiro'
@@ -16,9 +17,14 @@ interface Props {
   moradores: string[]
   aberta: boolean
   onAlternar: () => void
-  onAlterada: (conta: ContaDoMes) => void
+  /** Salva a conta (jaSalva: o repositório já gravou, só atualiza a tela). Rejeita se falhar. */
+  onAlterada: (conta: ContaDoMes, jaSalva?: boolean) => Promise<void>
   onRemovida: () => void
 }
+
+/** Campos que o usuário edita à mão e só vão para o banco ao tocar em "Salvar". */
+type CampoEditavel = 'codigoPagamento' | 'valor' | 'responsavel' | 'pagoEm'
+type Edicoes = Partial<Pick<ContaDoMes, CampoEditavel>>
 
 const ESTILO_STATUS: Record<Status, string> = {
   pago: 'bg-emerald-500/15 text-emerald-300',
@@ -52,6 +58,35 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
   const [lendoPdf, setLendoPdf] = useState(false)
   const [leitura, setLeitura] = useState<{ ok: boolean; texto: string } | null>(null)
 
+  // Rascunho por cima da conta salva: o que vem do banco (tempo real, anexos) continua aparecendo
+  // nos campos que não foram mexidos. "versao" recria os campos de texto ao salvar ou descartar.
+  const [edicoes, setEdicoes] = useState<Edicoes>({})
+  const [versao, setVersao] = useState(0)
+  const [salvando, setSalvando] = useState(false)
+  const atual: ContaDoMes = { ...conta, ...edicoes }
+  const pendente = (Object.keys(edicoes) as CampoEditavel[]).some((campo) => edicoes[campo] !== conta[campo])
+
+  const editar = (mudanca: Edicoes) => setEdicoes((anteriores) => ({ ...anteriores, ...mudanca }))
+
+  function descartar() {
+    setEdicoes({})
+    setVersao((v) => v + 1)
+  }
+
+  async function salvar() {
+    setSalvando(true)
+    try {
+      await onAlterada(atual)
+      setEdicoes({})
+      setVersao((v) => v + 1)
+      mostrarAviso(`${conta.nome}: alterações salvas ✓`)
+    } catch (erro) {
+      mostrarAviso(`Não foi possível salvar: ${(erro as Error).message}`, 'erro')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
   /** Procura a linha digitável / Pix no PDF da conta e preenche o código (e o valor, se vazio). */
   async function preencherPeloPdf(base: ContaDoMes, arquivo: Blob) {
     setLendoPdf(true)
@@ -63,10 +98,18 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
         return
       }
       const pegouValor = base.valor == null && achado.valor != null
-      onAlterada({ ...base, codigoPagamento: achado.codigo, valor: base.valor ?? achado.valor })
-      setLeitura({ ok: true, texto: pegouValor ? 'Código e valor lidos do PDF ✓' : 'Código lido do PDF ✓' })
-    } catch {
-      setLeitura({ ok: false, texto: 'Não consegui ler este PDF.' })
+      await onAlterada({ ...base, codigoPagamento: achado.codigo, valor: base.valor ?? achado.valor })
+      // O que veio do PDF já foi salvo: tira do rascunho para não esconder o valor lido.
+      setEdicoes((anteriores) => {
+        const resto = { ...anteriores }
+        delete resto.codigoPagamento
+        if (pegouValor) delete resto.valor
+        return resto
+      })
+      setVersao((v) => v + 1)
+      setLeitura({ ok: true, texto: pegouValor ? 'Código e valor lidos do PDF e salvos ✓' : 'Código lido do PDF e salvo ✓' })
+    } catch (erro) {
+      setLeitura({ ok: false, texto: `Não consegui ler ou salvar o código do PDF (${(erro as Error).message}).` })
     } finally {
       setLendoPdf(false)
     }
@@ -74,7 +117,8 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
 
   async function anexar(campo: CampoAnexo, arquivo: File) {
     const atualizada = await anexarArquivo(conta, campo, arquivo)
-    onAlterada(atualizada)
+    await onAlterada(atualizada, true)
+    mostrarAviso(campo === 'comprovante' ? 'Comprovante salvo ✓ Conta paga!' : 'Conta anexada ✓')
     if (campo === 'conta' && arquivo.type === 'application/pdf' && !atualizada.codigoPagamento) {
       await preencherPeloPdf(atualizada, arquivo)
     }
@@ -91,7 +135,8 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
   const podeLerPdf = status !== 'pago' && !conta.codigoPagamento && conta.conta?.tipoMime === 'application/pdf'
 
   async function desanexar(campo: CampoAnexo) {
-    onAlterada(await removerAnexo(conta, campo))
+    await onAlterada(await removerAnexo(conta, campo), true)
+    mostrarAviso(campo === 'comprovante' ? 'Comprovante removido' : 'Conta removida do anexo')
   }
 
   async function remover() {
@@ -126,6 +171,7 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
           <span className="mt-0.5 flex items-center justify-between gap-2 text-sm">
             <span className={atrasada ? 'font-medium text-rose-400' : 'text-suave'}>
               {textoVencimento(conta, status)}
+              {pendente && !aberta && <span className="ml-1.5 font-medium text-amber-300">· não salvo</span>}
             </span>
             <span className="flex items-center gap-1 text-suave">
               {conta.valor != null && formatarReais(conta.valor)}
@@ -149,9 +195,9 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
                 {conta.tipo === 'debito' ? 'Chave Pix / código' : 'Código para pagar'}
               </p>
               <CampoCodigo
-                key={conta.codigoPagamento ?? ''}
-                codigo={conta.codigoPagamento}
-                onMudar={(codigoPagamento) => onAlterada({ ...conta, codigoPagamento })}
+                key={`${versao}-${conta.codigoPagamento ?? ''}`}
+                codigo={atual.codigoPagamento}
+                onMudar={(codigoPagamento) => editar({ codigoPagamento })}
               />
               {lendoPdf && <p className="mt-2 text-sm text-suave">Lendo o PDF…</p>}
               {!lendoPdf && leitura && (
@@ -172,12 +218,12 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
           <div>
             <p className="mb-1 text-xs font-semibold tracking-wide text-suave uppercase">Valor</p>
             <CampoValor
-              key={conta.valor ?? ''}
-              valor={conta.valor}
-              onMudar={(valor) => onAlterada({ ...conta, valor })}
+              key={`${versao}-${conta.valor ?? ''}`}
+              valor={atual.valor}
+              onMudar={(valor) => editar({ valor })}
               acessorio={
-                conta.valor != null && (
-                  <BotaoCopiar texto={valorParaTexto(conta.valor)} rotulo="Copiar valor" compacto />
+                atual.valor != null && (
+                  <BotaoCopiar texto={valorParaTexto(atual.valor)} rotulo="Copiar valor" compacto />
                 )
               }
             />
@@ -189,9 +235,9 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
               <input
                 type="date"
                 required
-                value={conta.pagoEm ?? ''}
+                value={atual.pagoEm ?? ''}
                 max={hoje()}
-                onChange={(e) => e.target.value && onAlterada({ ...conta, pagoEm: e.target.value })}
+                onChange={(e) => e.target.value && editar({ pagoEm: e.target.value })}
                 className="mt-1 w-full rounded-lg border border-borda bg-elevado px-3 py-2 outline-none focus:border-destaque"
               />
             </label>
@@ -205,9 +251,9 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
                   <button
                     key={nome}
                     type="button"
-                    onClick={() => onAlterada({ ...conta, responsavel: conta.responsavel === nome ? null : nome })}
+                    onClick={() => editar({ responsavel: atual.responsavel === nome ? null : nome })}
                     className={`rounded-full px-3 py-1.5 text-sm font-medium ${
-                      conta.responsavel === nome ? 'bg-destaque text-white' : 'bg-elevado text-suave'
+                      atual.responsavel === nome ? 'bg-destaque text-white' : 'bg-elevado text-suave'
                     }`}
                   >
                     {nome}
@@ -243,6 +289,33 @@ export function CartaoConta({ conta, moradores, aberta, onAlternar, onAlterada, 
               <Trash2 size={14} /> Remover conta avulsa
             </button>
           )}
+        </div>
+      )}
+
+      {/* Barra fixa acima do menu inferior: fica à vista no celular mesmo com a conta lá embaixo. */}
+      {aberta && pendente && (
+        <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 px-4 pb-3">
+          <div className="mx-auto flex max-w-md items-center gap-2 rounded-2xl bg-elevado p-2 pl-4 shadow-lg shadow-black/50 ring-1 ring-destaque/60">
+            <p className="min-w-0 flex-1 truncate text-sm text-suave">
+              Alterações em <strong className="text-texto">{conta.nome}</strong>
+            </p>
+            <button
+              type="button"
+              disabled={salvando}
+              onClick={descartar}
+              className="rounded-lg px-3 py-2.5 text-sm text-suave disabled:opacity-50"
+            >
+              Descartar
+            </button>
+            <button
+              type="button"
+              disabled={salvando}
+              onClick={salvar}
+              className="flex items-center gap-1.5 rounded-lg bg-destaque px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              <Save size={16} /> {salvando ? 'Salvando…' : 'Salvar'}
+            </button>
+          </div>
         </div>
       )}
     </article>
